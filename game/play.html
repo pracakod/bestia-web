@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="pl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover, maximum-scale=1.0">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0a0a0a">
+    <meta name="screen-orientation" content="landscape">
+    <title>Sanktuarium - Gra RPG</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="img/icon-192.png">
+    <!-- External CSS -->
+    <link rel="stylesheet" href="css/main.css">
+</head>
+
+<body>
+
+    <!-- Rotate Phone Overlay -->
+    <div class="rotate-overlay">
+        <div class="rotate-icon">📱</div>
+        <h2>Obróć telefon</h2>
+        <p>Gra działa tylko w trybie poziomym</p>
+        <div class="rotate-buttons">
+            <button class="rotate-fullscreen-btn" onclick="toggleFullscreen()">📺 Pełny Ekran</button>
+            <button class="rotate-fullscreen-btn" onclick="tryLockLandscape()">🔄 Zablokuj Poziomo</button>
+            <button class="rotate-fullscreen-btn" id="installBtn" onclick="installPWA()" style="display:none;">📲
+                Zainstaluj Grę</button>
+        </div>
+        <p style="font-size: 0.8rem; margin-top: 20px; opacity: 0.6;">iOS: Dodaj do ekranu głównego przez Share → "Dodaj
+            do ekranu początkowego"</p>
+    </div>
+
+    <!-- SELECT SCREEN (WIZARD) -->
+    <div id="selectScreen">
+        <!-- Fullscreen button -->
+        <button class="fullscreen-hint" onclick="toggleFullscreen()">📺 Pełny Ekran</button>
+
+        <!-- STEP 1: NAME & GENDER (Side-by-Side) -->
+        <div id="step-name" class="wizard-step active">
+            <h1>Stwórz Bohatera <span style="font-size: 0.8rem; color: #555; vertical-align: middle;">v1.7</span></h1>
+
+            <div class="step-1-row">
+                <!-- Left: Name -->
+                <div class="input-wrapper">
+                    <label class="input-label">Imię Twojej Postaci</label>
+                    <input type="text" id="playerNameInput" placeholder="Np. Arthas..." maxlength="15"
+                        onkeyup="if(event.key === 'Enter') nextStep(1)">
+                </div>
+
+                <!-- Right: Gender -->
+                <div class="gender-selection-side">
+                    <div class="gender-btn" id="btn-male" data-label="Mężczyzna" onclick="selectGender('male')">♂️</div>
+                    <div class="gender-btn" id="btn-female" data-label="Kobieta" onclick="selectGender('female')">♀️
+                    </div>
+                </div>
+
+                <!-- Button inside panel -->
+                <button class="wizard-btn wizard-btn-panel" id="nextStepBtn" onclick="nextStep(1)"
+                    style="display: none;">Dalej ➜</button>
+            </div>
+            <div class="error-msg" id="nameError"></div>
+        </div>
+
+        <!-- STEP 2: CLASS/AVATAR ONLY -->
+        <div id="step-class" class="wizard-step">
+            <button class="back-btn-top" onclick="prevStep(2)">⬅ Cofnij</button>
+            <h1>Wybierz Postać</h1>
+
+            <div class="grid" id="charGrid"></div>
+
+            <div class="orb orb-right disabled" id="playBtn" onclick="startGame()">GRAJ</div>
+        </div>
+    </div>
+
+    <!-- GAME SCREEN -->
+    <div id="gameScreen">
+        <!-- Default: Menu hidden -->
+        <div class="game-layout menu-hidden" id="gameLayout">
+            <!-- MOBILE HUD -->
+            <div class="top-bar" id="mobileHud">
+                <div class="hud-left">
+                    <img id="hudAvatar" class="player-avatar-mini" src="" alt="">
+                    <div class="hud-bars">
+                        <div class="hud-bar hp">
+                            <div class="hud-bar-fill hp-fill" style="width: 100%"></div>
+                            <span class="hud-bar-text" id="hpText">100/100</span>
+                        </div>
+                        <div class="hud-bar mana">
+                            <div class="hud-bar-fill mana-fill" style="width: 80%"></div>
+                            <span class="hud-bar-text">50/50</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="hud-center">
+                    <span id="hudName">GRACZ</span>
+                    <span class="hud-level" id="hudLevel">Lv.1</span>
+                    <span style="font-size:0.7rem; color:#aaa;" id="hudXP">0/0 XP</span>
+                </div>
+                <div class="hud-right">
+                    <span class="hud-gold">💰 <span id="goldText">0</span></span>
+                    <!-- Mobile Buttons -->
+                    <div class="mobile-hud-btns">
+                        <button class="mobile-icon-btn" onclick="showSettingsMenu()">⚙️</button>
+                        <button class="mobile-icon-btn" onclick="toggleFullscreen()">📺</button>
+                        <button class="mobile-icon-btn" onclick="toggleModal('modalInventory')">🎒</button>
+                        <button class="mobile-icon-btn" onclick="toggleModal('modalQuests')">📜</button>
+                    </div>
+                    <!-- Desktop Menu -->
+                    <button class="hud-menu-btn" onclick="toggleFullscreen()" title="Pełny ekran">📺</button>
+                    <button class="hud-menu-btn" onclick="toggleMenu()">☰</button>
+                </div>
+            </div>
+
+            <!-- LEFT PANEL (Menu/Quests) -->
+            <div class="panel left-panel" id="questsPanel">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <h3 style="margin:0; color:var(--color-accent); font-size:14px; text-transform:uppercase;">
+                        📜 Zadania</h3>
+                    <button onclick="document.getElementById('questsPanel').style.display='none'"
+                        style="background:none; border:none; color:#888; font-size:18px; cursor:pointer; padding:0;">✕</button>
+                </div>
+                <ul style="list-style:none; padding:0; font-size:11px; color:#ccc;" id="questList">
+                    <li id="questBestia" style="padding:5px 0; border-bottom:1px solid rgba(255,255,255,0.1);">
+                        <span style="color:#ff6666;">⚔️</span> Zabij Bestie
+                        <span id="questBestiaCount" style="color:#ffd700;">(0/3)</span>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- GAME MAP -->
+            <div class="game-map-container">
+                <div id="worldGrid">
+                    <!-- Player inserted by JS -->
+                </div>
+            </div>
+
+            <!-- RIGHT PANEL (Stats/Eq) -->
+            <div class="panel right-panel">
+                <h3 style="margin: 0 0 10px 0; color:var(--color-gold); font-size:14px; text-transform:uppercase;">
+                    Statystyki</h3>
+                <div class="stat-row"><span>Siła</span><span class="stat-val">10</span></div>
+                <div class="stat-row"><span>Zręczność</span><span class="stat-val">5</span></div>
+                <div class="stat-row"><span>Inteligencja</span><span class="stat-val">2</span></div>
+                <div class="stat-row"><span>Pancerz</span><span class="stat-val">15</span></div>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; margin: 20px 0 5px 0;">
+                    <h3 style="margin: 0; color:#888; font-size:12px;">EKWIPUNEK</h3>
+                    <button onclick="showSettingsMenu()"
+                        style="background:none; border:none; font-size:16px; cursor:pointer; color:#888;"
+                        title="Ustawienia">⚙️</button>
+                </div>
+                <div class="eq-grid">
+                    <div class="eq-slot"><img src="img/potions/miksturaleczenia.png" title="Mikstura Leczenia"
+                            style="width:100%; height:100%;"></div>
+                    <div class="eq-slot"><img src="img/potions/manamikstura.png" title="Mikstura Many"
+                            style="width:100%; height:100%;"></div>
+                    <div class="eq-slot"><img src="img/mounts/kon1.png" title="Wierzchowiec: Koń"
+                            style="width:100%; height:100%;"></div>
+                    <div class="eq-slot"><img src="img/mounts/wilk.png" title="Wierzchowiec: Wilk"
+                            style="width:100%; height:100%;"></div>
+                    <div class="eq-slot"></div>
+                    <div class="eq-slot"></div>
+                    <div class="eq-slot"></div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Virtual Joystick -->
+        <div id="joystickContainer">
+            <div id="joystickBase">
+                <div id="joystickKnob"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Combat Screen (Iratus Style - Compact) -->
+    <div id="combatScreen">
+        <div class="combat-bg"></div>
+
+        <!-- Turn Counter -->
+        <div class="turn-counter" id="turnCounter">Tura 1</div>
+
+        <div class="combat-container">
+            <div class="combat-main-area">
+                <!-- Player Side (Left) -->
+                <div class="combat-side player-side">
+                    <div class="combatant player-combatant" id="playerCombatant">
+                        <div class="combatant-info-row">
+                            <div class="combatant-name" id="playerCombatName">GRACZ</div>
+                            <div class="combatant-level" id="playerCombatLevel">Lvl 1</div>
+                        </div>
+                        <div class="combatant-sprite" id="playerCombatSprite">🧙</div>
+                        <div class="combatant-bars">
+                            <div class="combatant-hp-bar">
+                                <div class="combatant-hp-fill" id="playerCombatHP" style="width: 100%"></div>
+                            </div>
+                            <div class="combatant-stat-text" id="playerHPText">100/100</div>
+
+                            <div class="combatant-mana-bar">
+                                <div class="combatant-mana-fill" id="playerCombatMana" style="width: 100%"></div>
+                            </div>
+                            <div class="combatant-stat-text mana-text" id="playerManaText">50/50</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VS visual -->
+                <div class="combat-vs">VS</div>
+
+                <!-- Enemy Side (Right) -->
+                <div class="combat-side enemy-side">
+                    <div class="combatant enemy-combatant" id="enemyCombatant">
+                        <div class="combatant-info-row">
+                            <div class="combatant-name" id="enemyCombatName">BESTIA</div>
+                            <div class="combatant-level" id="enemyCombatLevel">Lvl 1</div>
+                        </div>
+                        <div class="combatant-sprite" id="enemyCombatSprite">👹</div>
+                        <div class="combatant-bars">
+                            <div class="combatant-hp-bar">
+                                <div class="combatant-hp-fill enemy-hp" id="enemyCombatHP" style="width: 100%"></div>
+                            </div>
+                            <div class="combatant-stat-text" id="enemyHPText">50/50</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Combat Log - LEFT SIDE -->
+            <div class="combat-log" id="combatLog">
+                > Walka rozpoczęta!
+            </div>
+
+            <!-- Combat UI Bottom -->
+            <div class="combat-ui">
+                <!-- MP Info hint - LEFT -->
+                <span class="mp-hint" title="Punkty Many - energia magiczna">MP = Mana</span>
+                <!-- Skills Layout -->
+                <div class="combat-actions" id="combatActions">
+                    <button class="combat-btn attack-btn" onclick="combatSkill('attack')"
+                        title="Atak podstawowy (8-15 obrażeń)">
+                        ⚔️ <br><span class="btn-sub">ATAK</span>
+                    </button>
+                    <button class="combat-btn power-btn" onclick="combatSkill('power')"
+                        title="Silny Atak (15-25 obrażeń)">
+                        💥 <br><span class="btn-sub">10 MP</span>
+                    </button>
+                    <button class="combat-btn skill-btn" onclick="combatSkill('fireball')"
+                        title="Kula Ognia (20-30 obrażeń)">
+                        🔥 <br><span class="btn-sub">20 MP</span>
+                    </button>
+                    <button class="combat-btn heal-btn" onclick="combatSkill('heal')" title="Leczenie (+30 HP)">
+                        ❤️ <br><span class="btn-sub">15 MP</span>
+                    </button>
+                    <button class="combat-btn item-btn" onclick="useCombatItem()" title="Użyj mikstury (+40 HP)">
+                        🧪 <br><span class="btn-sub">+40 HP</span>
+                    </button>
+                    <button class="combat-btn item-btn-mana" onclick="useManaPotion()"
+                        title="Użyj mikstury many (+25 MP)" style="border-bottom: 2px solid #4488ff;">
+                        🧪 <br><span class="btn-sub">+25 MP</span>
+                    </button>
+                    <button class="combat-btn defend-btn" onclick="combatDefend()" title="Obrona (-70% obrażeń)">
+                        🛡️ <br><span class="btn-sub">OBRONA</span>
+                    </button>
+                    <button class="combat-btn flee-btn" onclick="combatFlee()" title="Ucieczka (50% szans)">
+                        🏃 <br><span class="btn-sub">UCIECZKA</span>
+                    </button>
+                </div>
+                <div class="combat-turn-indicator" id="turnIndicator">TWOJA TURA</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- POPUP MENU OVERLAY -->
+    <div id="overlay">
+        <div class="menu">
+            <button class="close-btn" onclick="toggleMenu()">×</button>
+            <div class="menu-item" onclick="alert('Zapisano!')">💾 Zapisz Grę</div>
+            <div class="menu-item" onclick="location.reload()">🔄 Wczytaj Grę</div>
+            <div class="menu-item" onclick="toggleFullScreen()">📺 Pełny Ekran</div>
+            <div class="menu-item" onclick="toggleMenu()">❌ Zamknij</div>
+        </div>
+    </div>
+
+    <!-- MOBILE MODALS (Hidden by default) -->
+    <div id="modalInventory" class="mobile-modal">
+        <button class="modal-close-landscape" onclick="toggleModal('modalInventory')">✕</button>
+        <div class="modal-header">
+            <h2>🎒 Ekwipunek</h2>
+            <button class="modal-close" onclick="toggleModal('modalInventory')">✕</button>
+        </div>
+        <div class="modal-body">
+            <div class="mobile-stats">
+                <div class="stat-row"><span>❤️ HP:</span> <span id="mobHp">100/100</span></div>
+                <div class="stat-row"><span>💙 MP:</span> <span id="mobMana">50/50</span></div>
+                <div class="stat-row"><span>💰:</span> <span id="mobGold" style="color:gold">0</span></div>
+            </div>
+            <hr style="border-color:#333; margin:10px 0;">
+            <div class="eq-grid mobile-grid">
+                <div class="eq-slot"><img src="img/potions/miksturaleczenia.png" onclick="alert('Użyto Mikstury!')">
+                </div>
+                <div class="eq-slot"><img src="img/potions/manamikstura.png" onclick="alert('Użyto Many!')"></div>
+                <div class="eq-slot"></div>
+                <div class="eq-slot"></div>
+                <div class="eq-slot"></div>
+                <div class="eq-slot"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalQuests" class="mobile-modal">
+        <button class="modal-close-landscape" onclick="toggleModal('modalQuests')">✕</button>
+        <div class="modal-header">
+            <h2>📜 Zadania</h2>
+            <button class="modal-close" onclick="toggleModal('modalQuests')">✕</button>
+        </div>
+        <div class="modal-body">
+            <ul class="quest-list" id="modalQuestList" style="list-style:none; padding:0;">
+                <li id="modalQuestBestia"
+                    style="padding:15px; background:rgba(255,255,255,0.05); border-radius:10px; margin-bottom:10px; border:1px solid rgba(255,215,0,0.2);">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight:bold; color:var(--color-gold);">⚔️ Zabij Bestie</span>
+                        <span id="modalQuestBestiaCount" style="color:#ffd700; font-family:monospace;">(0/3)</span>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- External JavaScript -->
+    <script src="js/game-all.js"></script>
+</body>
+
+</html>
