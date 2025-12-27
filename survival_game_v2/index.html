@@ -245,12 +245,16 @@
     <div id="loading">
         <h1>🔥 Survival Game</h1>
         <div class="spinner"></div>
+        <button id="btn-fullscreen-loading"
+            style="margin-top: 20px; padding: 10px 20px; font-size: 16px; background: #444; border: 1px solid #666; color: white; border-radius: 8px;">
+            Pełny Ekran / Obróć ⛶
+        </button>
+        <p style="margin-top: 1rem; color: rgba(255,255,255,0.6);">Loading resources...</p>
     </div>
 
     <script>
-        // Fullscreen and Orientation Lock
-        const btnFullscreen = document.getElementById('btn-fullscreen');
-        btnFullscreen.addEventListener('click', async () => {
+        // Fullscreen and Orientation Lock Logic
+        const handleFullscreen = async () => {
             try {
                 if (document.documentElement.requestFullscreen) {
                     await document.documentElement.requestFullscreen();
@@ -263,15 +267,24 @@
                     try {
                         await screen.orientation.lock('landscape');
                     } catch (err) {
-                        console.log('Orientation lock not supported:', err);
+                        // console.log('Orientation lock not supported:', err);
                     }
                 }
             } catch (err) {
                 console.error('Fullscreen error:', err);
             }
+        };
+
+        const btnFullscreen = document.getElementById('btn-fullscreen');
+        if (btnFullscreen) btnFullscreen.addEventListener('click', handleFullscreen);
+
+        const btnFullscreenLoad = document.getElementById('btn-fullscreen-loading');
+        if (btnFullscreenLoad) btnFullscreenLoad.addEventListener('click', () => {
+            handleFullscreen();
+            // Optional: Hide button after click to show intent
+            btnFullscreenLoad.style.display = 'none';
         });
     </script>
-    <p style="margin-top: 1rem; color: rgba(255,255,255,0.6);">Loading resources...</p>
 
     <!-- Character Selection (hidden) -->
     <div id="char-selection"></div>
