@@ -1107,7 +1107,8 @@ function animate() {
 
         renderer.render(scene, camera);
     }
+}
 
-    // === AUTO START ===
-    document.getElementById('char-selection').style.display = 'none';
-    startGame('adventurer_run');
+// === AUTO START ===
+document.getElementById('char-selection').style.display = 'none';
+startGame('adventurer_run');
