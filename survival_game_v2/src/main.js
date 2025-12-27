@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from 'https://unpkg.com/three@0.157.0/build/three.module.js';
 
 // === SCENE SETUP ===
 const scene = new THREE.Scene();
@@ -57,7 +57,10 @@ const MAP_SIZE = 100;
 // === TEXTURES ===
 const textureLoader = new THREE.TextureLoader();
 
-const floorTexture = textureLoader.load('./img/floor.jpg');
+// Textures helper for raw GitHub Pages structure
+const basePath = './public/img/';
+
+const floorTexture = textureLoader.load(basePath + 'floor.jpg');
 floorTexture.magFilter = THREE.NearestFilter;
 floorTexture.minFilter = THREE.NearestFilter;
 floorTexture.wrapS = THREE.ClampToEdgeWrapping;
@@ -65,7 +68,7 @@ floorTexture.wrapT = THREE.ClampToEdgeWrapping;
 floorTexture.repeat.set(1, 1);
 
 // Main block texture for everything
-const blockTexture = textureLoader.load('./img/rock_texture.jpg');
+const blockTexture = textureLoader.load(basePath + 'rock_texture.jpg');
 blockTexture.magFilter = THREE.NearestFilter;
 blockTexture.minFilter = THREE.NearestFilter;
 
@@ -327,16 +330,16 @@ function startGame(avatarUrl) {
             }
         };
 
-        loadAnimatedTexture('./img/adventurer/run/FR_Adventurer_Run', 10, (tex) => {
+        loadAnimatedTexture(basePath + 'adventurer/run/FR_Adventurer_Run', 10, (tex) => {
             runTex = tex;
             checkReady();
         });
-        loadAnimatedTexture('./img/adventurer/idle/FR_Adventurer_Idle', 12, (tex) => {
+        loadAnimatedTexture(basePath + 'adventurer/idle/FR_Adventurer_Idle', 12, (tex) => {
             idleTex = tex;
             checkReady();
         });
 
-        loadAnimatedTexture('./img/adventurer/slash/FR_Adventurer_Slash', 8, (tex) => {
+        loadAnimatedTexture(basePath + 'adventurer/slash/FR_Adventurer_Slash', 8, (tex) => {
             slashTex = tex;
             checkReady();
         });
@@ -394,7 +397,7 @@ let attackStartTime = 0;
 
 // === DROP SYSTEM ===
 const drops = [];
-const dropTexture = textureLoader.load('./img/drop_stone.png');
+const dropTexture = textureLoader.load(basePath + 'drop_stone.png');
 dropTexture.magFilter = THREE.NearestFilter;
 
 function spawnDrop(x, z) {
@@ -715,7 +718,7 @@ function spawnWorldObjects() {
     const cz = MAP_SIZE / 2 * TILE_SIZE;
 
     // Crystal
-    const crystalTex = textureLoader.load('./img/crystal_rock.png');
+    const crystalTex = textureLoader.load(basePath + 'crystal_rock.png');
     crystalTex.magFilter = THREE.NearestFilter;
 
     const crystalMat = new THREE.MeshStandardMaterial({
@@ -770,7 +773,7 @@ function spawnWorldObjects() {
     });
 
     // Grass floor area (5x5)
-    const grassTexture = textureLoader.load('./img/grass.png');
+    const grassTexture = textureLoader.load(basePath + 'grass.png');
     grassTexture.magFilter = THREE.NearestFilter;
     grassTexture.minFilter = THREE.NearestFilter;
 
@@ -808,7 +811,7 @@ function spawnWorldObjects() {
     }
 
     // Wood floor area 1 (5x5)
-    const wood1Tex = textureLoader.load('./img/wood1.jpg');
+    const wood1Tex = textureLoader.load(basePath + 'wood1.jpg');
     wood1Tex.magFilter = THREE.NearestFilter;
     const wood1Mat = new THREE.MeshStandardMaterial({ map: wood1Tex, roughness: 0.8 });
 
@@ -828,7 +831,7 @@ function spawnWorldObjects() {
     }
 
     // Wood floor area 2 (5x5)
-    const wood2Tex = textureLoader.load('./img/wood2.jpg');
+    const wood2Tex = textureLoader.load(basePath + 'wood2.jpg');
     wood2Tex.magFilter = THREE.NearestFilter;
     const wood2Mat = new THREE.MeshStandardMaterial({ map: wood2Tex, roughness: 0.8 });
 
@@ -848,7 +851,7 @@ function spawnWorldObjects() {
     }
 
     // Water area 1 (3x3) - deep water (blocks movement)
-    const water1Tex = textureLoader.load('./img/water1.jpg');
+    const water1Tex = textureLoader.load(basePath + 'water1.jpg');
     water1Tex.magFilter = THREE.NearestFilter;
     const water1Mat = new THREE.MeshStandardMaterial({ map: water1Tex, roughness: 0.2, metalness: 0.3 });
 
@@ -868,7 +871,7 @@ function spawnWorldObjects() {
     }
 
     // Water area 2 with coast (4x4)
-    const water2Tex = textureLoader.load('./img/water2.jpg');
+    const water2Tex = textureLoader.load(basePath + 'water2.jpg');
     water2Tex.magFilter = THREE.NearestFilter;
     const water2Mat = new THREE.MeshStandardMaterial({ map: water2Tex, roughness: 0.2, metalness: 0.3 });
 
