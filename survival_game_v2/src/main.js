@@ -985,58 +985,70 @@ function animate() {
         playerLight.position.z = player.position.z;
     }
 
-    if (!collision) {
-        player.position.x = nextX;
-        player.position.z = nextZ;
 
-        if (playerShadow) {
-            playerShadow.position.set(nextX, 0.02, nextZ + 0.05);
-        }
-        if (playerLight) {
-            playerLight.position.set(nextX, 1.5, nextZ);
+
+    // DROP COLLECTION
+    for (let i = drops.length - 1; i >= 0; i--) {
+        const drop = drops[i];
+        drop.mesh.rotation.z += 0.01;
+        const bobTime = (Date.now() - drop.spawnTime) * 0.005;
+        drop.mesh.position.y = 0.15 + Math.sin(bobTime) * 0.05;
+
+        const ddx = player.position.x - drop.mesh.position.x;
+        const ddz = player.position.z - drop.mesh.position.z;
+        const dist = Math.sqrt(ddx * ddx + ddz * ddz);
+
+        if (dist < 0.5) {
+            scene.remove(drop.mesh);
+            drops.splice(i, 1);
+            console.log("Zebrano:", drop.type);
         }
     }
-}
 
-// DROP COLLECTION
-for (let i = drops.length - 1; i >= 0; i--) {
-    const drop = drops[i];
-    drop.mesh.rotation.z += 0.01;
-    const bobTime = (Date.now() - drop.spawnTime) * 0.005;
-    drop.mesh.position.y = 0.15 + Math.sin(bobTime) * 0.05;
+    // SELECTOR
+    const sIx = Math.round((player.position.x + lastFacing.x * TILE_SIZE) / TILE_SIZE);
+    const sIz = Math.round((player.position.z + lastFacing.y * TILE_SIZE) / TILE_SIZE);
+    selector.position.x = sIx * TILE_SIZE;
+    selector.position.z = sIz * TILE_SIZE;
 
-    const ddx = player.position.x - drop.mesh.position.x;
-    const ddz = player.position.z - drop.mesh.position.z;
-    const dist = Math.sqrt(ddx * ddx + ddz * ddz);
+    // ANIMATION
+    if (isSpriteSheet && player.userData.isStitched) {
+        if (isAttacking && player.userData.slashTex) {
+            if (player.material.map !== player.userData.slashTex) {
+                player.material.map = player.userData.slashTex;
+            }
+            const count = 8;
+            const speed = 60;
+            const frameIndex = Math.floor((Date.now() - attackStartTime) / speed);
 
-    if (dist < 0.5) {
-        scene.remove(drop.mesh);
-        drops.splice(i, 1);
-        console.log("Zebrano:", drop.type);
-    }
-}
+            if (frameIndex >= count) {
+                isAttacking = false;
+            } else {
+                // Fix: Adjust offset when flipped
+                const facingRight = lastFacing.x >= 0;
+                if (facingRight) {
+                    player.material.map.offset.x = (frameIndex + 1) / count;
+                    player.material.map.repeat.x = -1 / count;
+                } else {
+                    player.material.map.offset.x = frameIndex / count;
+                    player.material.map.repeat.x = 1 / count;
+                }
+                player.material.map.offset.y = 0;
+            }
+        } else if (isMoving) {
+            if (player.userData.runTex && player.material.map !== player.userData.runTex) {
+                player.material.map = player.userData.runTex;
+            }
+            const count = 10;
+            const speed = 80;
+            const frameIndex = Math.floor(Date.now() / speed) % count;
 
-// SELECTOR
-const sIx = Math.round((player.position.x + lastFacing.x * TILE_SIZE) / TILE_SIZE);
-const sIz = Math.round((player.position.z + lastFacing.y * TILE_SIZE) / TILE_SIZE);
-selector.position.x = sIx * TILE_SIZE;
-selector.position.z = sIz * TILE_SIZE;
+            // Determine facing direction
+            let facingRight = lastFacing.x >= 0;
+            if (dx < -0.01) facingRight = false;
+            else if (dx > 0.01) facingRight = true;
 
-// ANIMATION
-if (isSpriteSheet && player.userData.isStitched) {
-    if (isAttacking && player.userData.slashTex) {
-        if (player.material.map !== player.userData.slashTex) {
-            player.material.map = player.userData.slashTex;
-        }
-        const count = 8;
-        const speed = 60;
-        const frameIndex = Math.floor((Date.now() - attackStartTime) / speed);
-
-        if (frameIndex >= count) {
-            isAttacking = false;
-        } else {
             // Fix: Adjust offset when flipped
-            const facingRight = lastFacing.x >= 0;
             if (facingRight) {
                 player.material.map.offset.x = (frameIndex + 1) / count;
                 player.material.map.repeat.x = -1 / count;
@@ -1045,72 +1057,57 @@ if (isSpriteSheet && player.userData.isStitched) {
                 player.material.map.repeat.x = 1 / count;
             }
             player.material.map.offset.y = 0;
-        }
-    } else if (isMoving) {
-        if (player.userData.runTex && player.material.map !== player.userData.runTex) {
-            player.material.map = player.userData.runTex;
-        }
-        const count = 10;
-        const speed = 80;
-        const frameIndex = Math.floor(Date.now() / speed) % count;
-
-        // Determine facing direction
-        let facingRight = lastFacing.x >= 0;
-        if (dx < -0.01) facingRight = false;
-        else if (dx > 0.01) facingRight = true;
-
-        // Fix: Adjust offset when flipped
-        if (facingRight) {
-            player.material.map.offset.x = (frameIndex + 1) / count;
-            player.material.map.repeat.x = -1 / count;
         } else {
-            player.material.map.offset.x = frameIndex / count;
-            player.material.map.repeat.x = 1 / count;
-        }
-        player.material.map.offset.y = 0;
-    } else {
-        if (player.userData.idleTex && player.material.map !== player.userData.idleTex) {
-            player.material.map = player.userData.idleTex;
-        }
-        const count = 12;
+            if (player.userData.idleTex && player.material.map !== player.userData.idleTex) {
+                player.material.map = player.userData.idleTex;
+            }
+            const count = 12;
 
-        const speed = 100;
-        const frameIndex = Math.floor(Date.now() / speed) % count;
+            const speed = 100;
+            const frameIndex = Math.floor(Date.now() / speed) % count;
 
-        // Fix: When flipped (facing right), offset needs adjustment
-        const facingRight = lastFacing.x >= 0;
-        if (facingRight) {
-            // Flipped - need to offset by one frame width
-            player.material.map.offset.x = (frameIndex + 1) / count;
-            player.material.map.repeat.x = -1 / count;
-        } else {
-            // Normal - facing left
-            player.material.map.offset.x = frameIndex / count;
-            player.material.map.repeat.x = 1 / count;
+            // Fix: When flipped (facing right), offset needs adjustment
+            const facingRight = lastFacing.x >= 0;
+            if (facingRight) {
+                // Flipped - need to offset by one frame width
+                player.material.map.offset.x = (frameIndex + 1) / count;
+                player.material.map.repeat.x = -1 / count;
+            } else {
+                // Normal - facing left
+                player.material.map.offset.x = frameIndex / count;
+                player.material.map.repeat.x = 1 / count;
+            }
+            player.material.map.offset.y = 0;
         }
-        player.material.map.offset.y = 0;
+
+        // Update Shadow & Light Position
+        if (playerShadow) {
+            playerShadow.position.set(player.position.x, 0.02, player.position.z + 0.05);
+        }
+        if (playerLight) {
+            playerLight.position.set(player.position.x, 1.5, player.position.z);
+        }
+
+        // Shadow sync (Texture)
+        if (playerShadow && playerShadow.material.map !== player.material.map) {
+            playerShadow.material.map = player.material.map;
+            playerShadow.material.needsUpdate = true;
+        }
+
+        // Camera Follow
+
+
+        // Camera Follow
+        const targetX = player.position.x;
+        const targetZ = player.position.z + 5;
+        camera.position.x += (targetX - camera.position.x) * 0.2;
+        camera.position.z += (targetZ - camera.position.z) * 0.2;
+        camera.position.y = 7;
+        camera.lookAt(camera.position.x, 0, camera.position.z - 5);
+
+        renderer.render(scene, camera);
     }
 
-    // Shadow sync
-    if (playerShadow && playerShadow.material.map !== player.material.map) {
-        playerShadow.material.map = player.material.map;
-        playerShadow.material.needsUpdate = true;
-    }
-
-    // Camera Follow
-
-
-    // Camera Follow
-    const targetX = player.position.x;
-    const targetZ = player.position.z + 5;
-    camera.position.x += (targetX - camera.position.x) * 0.2;
-    camera.position.z += (targetZ - camera.position.z) * 0.2;
-    camera.position.y = 7;
-    camera.lookAt(camera.position.x, 0, camera.position.z - 5);
-
-    renderer.render(scene, camera);
-}
-
-// === AUTO START ===
-document.getElementById('char-selection').style.display = 'none';
-startGame('adventurer_run');
+    // === AUTO START ===
+    document.getElementById('char-selection').style.display = 'none';
+    startGame('adventurer_run');
