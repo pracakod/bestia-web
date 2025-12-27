@@ -315,7 +315,25 @@
         <button class="action-btn" id="btn-torch">🔥</button>
     </div>
 
-    <script type="module" src="./src/main.js?v=8"></script>
+    <!-- Debug Coordinates -->
+    <div id="coords" style="
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        background: rgba(0,0,0,0.7);
+        color: #0f0;
+        font-family: monospace;
+        font-size: 14px;
+        padding: 8px 12px;
+        border-radius: 5px;
+        z-index: 1000;
+        pointer-events: none;
+    ">
+        Gracz: 0 / 0<br>
+        Cel: 0 / 0
+    </div>
+
+    <script type="module" src="./src/main.js?v=9"></script>
 </body>
 
 </html>

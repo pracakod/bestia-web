@@ -1015,6 +1015,14 @@ function animate() {
     selector.position.x = sIx * TILE_SIZE;
     selector.position.z = sIz * TILE_SIZE;
 
+    // UPDATE COORDINATES DISPLAY
+    const pIx = Math.round(player.position.x / TILE_SIZE);
+    const pIz = Math.round(player.position.z / TILE_SIZE);
+    const coordsEl = document.getElementById('coords');
+    if (coordsEl) {
+        coordsEl.innerHTML = `Gracz: ${pIx} / ${pIz}<br>Cel: ${sIx} / ${sIz}`;
+    }
+
     // ANIMATION
     if (isSpriteSheet && player.userData.isStitched) {
         if (isAttacking && player.userData.slashTex) {
