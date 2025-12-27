@@ -351,7 +351,25 @@
         Cel: 0 / 0
     </div>
 
-    <script type="module" src="./src/main.js?v=10"></script>
+    <div id="map-overlay" style="
+        display: none;
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: rgba(0,0,0,0.85);
+        z-index: 2000;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        color: white;
+    ">
+        <h2>Mapa Świata</h2>
+        <canvas id="map-canvas" width="1000" height="1000"
+            style="width: 80vmin; height: 80vmin; border: 2px solid #555; background: black; box-shadow: 0 0 20px black; image-rendering: pixelated;"></canvas>
+        <p>Naciśnij <b>M</b> aby zamknąć</p>
+    </div>
+
+    <script type="module" src="./src/main.js?v=11"></script>
 </body>
 
 </html>

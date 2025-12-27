@@ -56,225 +56,243 @@ scene.add(dirLight);
 
 // === CONSTANTS ===
 const TILE_SIZE = 0.7;
-const MAP_SIZE = 100;
+const MAP_SIZE = 5000; // MASSIVE MAP
+const VIEW_RADIUS = 35; // Tiles visible around player
+const CENTER = MAP_SIZE / 2;
+
+// Biome thresholds (distance from center)
+const STONE_RADIUS = 800;  // Inner stone/cave biome
+const GRASS_RADIUS = 2000;  // Middle grass/forest biome
+// Beyond GRASS_RADIUS = sand/water biome
 
 // === TEXTURES ===
 const textureLoader = new THREE.TextureLoader();
-
-// Textures helper for raw GitHub Pages structure
 const basePath = './public/img/';
 
-const floorTexture = textureLoader.load(basePath + 'floor.jpg');
-floorTexture.magFilter = THREE.NearestFilter;
-floorTexture.minFilter = THREE.NearestFilter;
-floorTexture.wrapS = THREE.ClampToEdgeWrapping;
-floorTexture.wrapT = THREE.ClampToEdgeWrapping;
-floorTexture.repeat.set(1, 1);
+// Load all biome textures
+const stoneFloorTex = textureLoader.load(basePath + 'floor.jpg');
+stoneFloorTex.magFilter = THREE.NearestFilter;
 
-// Main block texture for everything
-const blockTexture = textureLoader.load(basePath + 'rock_texture.jpg');
-blockTexture.magFilter = THREE.NearestFilter;
-blockTexture.minFilter = THREE.NearestFilter;
+const stoneWallTex = textureLoader.load(basePath + 'rock_texture.jpg');
+stoneWallTex.magFilter = THREE.NearestFilter;
 
-// === WORLD GENERATION ===
+const grassTex = textureLoader.load(basePath + 'grass.png');
+grassTex.magFilter = THREE.NearestFilter;
+
+const sandTex = textureLoader.load(basePath + 'sand.png');
+sandTex.magFilter = THREE.NearestFilter;
+
+const waterTex = textureLoader.load(basePath + 'water1.jpg');
+waterTex.magFilter = THREE.NearestFilter;
+
+const workbenchTex = textureLoader.load(basePath + 'workbench.png');
+workbenchTex.magFilter = THREE.NearestFilter;
+
+const chestTex = textureLoader.load(basePath + 'chest.png');
+chestTex.magFilter = THREE.NearestFilter;
+
+// Keep references for compatibility
+const floorTexture = stoneFloorTex;
+const blockTexture = stoneWallTex;
+
+// === DYNAMIC CHUNK SYSTEM ===
 const voxelGeo = new THREE.BoxGeometry(0.7, 0.7, 0.7);
 
-// 1. FLOOR (Instanced)
-const floorMat = new THREE.MeshStandardMaterial({
-    map: floorTexture,
-    roughness: 0.9,
-    color: 0xffffff
-});
-const floorMesh = new THREE.InstancedMesh(voxelGeo, floorMat, MAP_SIZE * MAP_SIZE);
-floorMesh.receiveShadow = true;
-scene.add(floorMesh);
+// Materials for each biome
+const stoneMat = new THREE.MeshStandardMaterial({ map: stoneFloorTex, roughness: 0.9 });
+const stoneWallMat = new THREE.MeshStandardMaterial({ map: stoneWallTex, roughness: 0.9 });
+const grassMat = new THREE.MeshStandardMaterial({ map: grassTex, roughness: 0.9 });
+const sandMat = new THREE.MeshStandardMaterial({ map: sandTex, roughness: 0.9 });
+const waterMaterial = new THREE.MeshStandardMaterial({ map: waterTex, roughness: 0.3, metalness: 0.2 });
 
-// 2. WALLS (Instanced)
-const wallMat = new THREE.MeshStandardMaterial({
-    map: blockTexture,
-    roughness: 0.9
-});
-const caveWalls = new THREE.InstancedMesh(voxelGeo, wallMat, MAP_SIZE * MAP_SIZE);
-caveWalls.castShadow = true;
-caveWalls.receiveShadow = true;
-scene.add(caveWalls);
+// Compatibility references
+const floorMat = stoneMat;
+const wallMat = stoneWallMat;
 
-// Collision Map
+// Loaded tiles and collision map
+const loadedTiles = new Map();
 const objectsMap = new Map();
+
 function getKey(worldX, worldZ) {
     const gx = Math.round(worldX / TILE_SIZE);
     const gz = Math.round(worldZ / TILE_SIZE);
     return `${gx},${gz}`;
 }
 
-// === ADVANCED MAP GENERATION ===
-const tempObj = new THREE.Object3D();
-let wallCount = 0;
-let floorCount = 0;
-
-// Create map array
-const mapGrid = [];
-for (let x = 0; x < MAP_SIZE; x++) {
-    mapGrid[x] = [];
-    for (let z = 0; z < MAP_SIZE; z++) {
-        // Start with random noise (40% walls)
-        mapGrid[x][z] = Math.random() < 0.4 ? 1 : 0;
-    }
+function getTileKey(gx, gz) {
+    return `${gx},${gz}`;
 }
 
-// Cellular Automata - smooth caves (5 iterations)
-for (let iter = 0; iter < 5; iter++) {
-    const newGrid = [];
-    for (let x = 0; x < MAP_SIZE; x++) {
-        newGrid[x] = [];
-        for (let z = 0; z < MAP_SIZE; z++) {
-            // Count neighbors
-            let walls = 0;
-            for (let dx = -1; dx <= 1; dx++) {
-                for (let dz = -1; dz <= 1; dz++) {
-                    const nx = x + dx;
-                    const nz = z + dz;
-                    if (nx < 0 || nx >= MAP_SIZE || nz < 0 || nz >= MAP_SIZE) {
-                        walls++; // Out of bounds = wall
-                    } else if (mapGrid[nx][nz] === 1) {
-                        walls++;
-                    }
-                }
-            }
-            // Become wall if 5+ neighbors are walls
-            newGrid[x][z] = walls >= 5 ? 1 : 0;
-        }
-    }
-    for (let x = 0; x < MAP_SIZE; x++) {
-        for (let z = 0; z < MAP_SIZE; z++) {
-            mapGrid[x][z] = newGrid[x][z];
-        }
-    }
+const WORLD_SEED = 12345; // Fixed seed
+console.log("World Seed:", WORLD_SEED);
+
+// Hash function for pseudo-random numbers
+function seededRandom(x, z) {
+    const seed = (x + WORLD_SEED) * 374761393 + (z + WORLD_SEED) * 668265263;
+    let t = (seed ^ (seed >> 13)) * 1274126177;
+    t = (t ^ (t >> 16));
+    return (t & 0x7fffffff) / 0x7fffffff;
 }
 
-// Carve out rooms (random rectangles)
-const rooms = [];
-for (let i = 0; i < 8; i++) {
-    const roomW = 5 + Math.floor(Math.random() * 10);
-    const roomH = 5 + Math.floor(Math.random() * 10);
-    const roomX = 10 + Math.floor(Math.random() * (MAP_SIZE - 20 - roomW));
-    const roomZ = 10 + Math.floor(Math.random() * (MAP_SIZE - 20 - roomH));
+// === NOISE GENERATOR (Value Noise) ===
+function lerp(a, b, t) { return a + (b - a) * t; }
+function smooth(t) { return t * t * (3 - 2 * t); }
 
-    rooms.push({ x: roomX + roomW / 2, z: roomZ + roomH / 2 });
+function valueNoise(x, z) {
+    const xi = Math.floor(x);
+    const zi = Math.floor(z);
 
-    for (let x = roomX; x < roomX + roomW; x++) {
-        for (let z = roomZ; z < roomZ + roomH; z++) {
-            mapGrid[x][z] = 0; // Clear room
-        }
-    }
+    // Smooth interpolation weights
+    const sx = smooth(x - xi);
+    const sz = smooth(z - zi);
+
+    // Random values at corners
+    const n00 = seededRandom(xi, zi);
+    const n10 = seededRandom(xi + 1, zi);
+    const n01 = seededRandom(xi, zi + 1);
+    const n11 = seededRandom(xi + 1, zi + 1);
+
+    // Mix
+    const nx0 = lerp(n00, n10, sx);
+    const nx1 = lerp(n01, n11, sx);
+    return lerp(nx0, nx1, sz);
 }
 
-// Connect rooms with corridors
-for (let i = 0; i < rooms.length - 1; i++) {
-    const r1 = rooms[i];
-    const r2 = rooms[i + 1];
+// Determine biome based on distance from center
+function getBiome(gx, gz) {
+    const dx = gx - CENTER;
+    const dz = gz - CENTER;
+    const dist = Math.sqrt(dx * dx + dz * dz);
 
-    // Horizontal then vertical
-    const startX = Math.floor(r1.x);
-    const endX = Math.floor(r2.x);
-    const startZ = Math.floor(r1.z);
-    const endZ = Math.floor(r2.z);
-
-    // Carve horizontal corridor
-    for (let x = Math.min(startX, endX); x <= Math.max(startX, endX); x++) {
-        for (let w = -1; w <= 1; w++) {
-            if (startZ + w >= 0 && startZ + w < MAP_SIZE) {
-                mapGrid[x][startZ + w] = 0;
-            }
-        }
-    }
-    // Carve vertical corridor
-    for (let z = Math.min(startZ, endZ); z <= Math.max(startZ, endZ); z++) {
-        for (let w = -1; w <= 1; w++) {
-            if (endX + w >= 0 && endX + w < MAP_SIZE) {
-                mapGrid[endX + w][z] = 0;
-            }
-        }
-    }
+    if (dist < STONE_RADIUS) return 'stone';
+    if (dist < GRASS_RADIUS) return 'grass';
+    return 'sand';
 }
 
-// Safe zone in center (clear area for crystal)
-const centerX = Math.floor(MAP_SIZE / 2);
-const centerZ = Math.floor(MAP_SIZE / 2);
-for (let x = centerX - 8; x <= centerX + 8; x++) {
-    for (let z = centerZ - 8; z <= centerZ + 8; z++) {
-        const dist = Math.sqrt((x - centerX) ** 2 + (z - centerZ) ** 2);
-        if (dist < 8) {
-            mapGrid[x][z] = 0;
-        }
+// Determine tile type with ORGANIC GENERATION
+function getTileType(gx, gz) {
+    const biome = getBiome(gx, gz);
+
+    // Map edges
+    if (gx <= 1 || gx >= MAP_SIZE - 2 || gz <= 1 || gz >= MAP_SIZE - 2) {
+        return { type: 'wall', biome };
     }
-}
 
-// Border walls
-for (let x = 0; x < MAP_SIZE; x++) {
-    for (let z = 0; z < MAP_SIZE; z++) {
-        if (x < 2 || x > MAP_SIZE - 3 || z < 2 || z > MAP_SIZE - 3) {
-            mapGrid[x][z] = 1;
-        }
+    // Clear spawn area
+    const dx = gx - CENTER;
+    const dz = gz - CENTER;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    if (dist < 15) return { type: 'floor', biome: 'stone' }; // Larger spawn
+
+    if (biome === 'stone') {
+        // CAVES: Organic shapes
+        // Scale 0.08 = nice caverns
+        const caveNoise = valueNoise(gx * 0.08, gz * 0.08);
+        const detail = valueNoise(gx * 0.2, gz * 0.2) * 0.2;
+
+        // Threshold: > 0.55 is wall, else floor
+        if (caveNoise + detail > 0.55) return { type: 'wall', biome };
+
+    } else if (biome === 'grass') {
+        // FOREST: Tree clumps
+        const treeNoise = valueNoise(gx * 0.1, gz * 0.1);
+        if (treeNoise > 0.65) return { type: 'wall', biome };
+
+    } else if (biome === 'sand') {
+        // OCEAN: Large bodies of water
+        const waterNoise = valueNoise(gx * 0.04, gz * 0.04);
+        if (waterNoise < 0.45) return { type: 'water', biome };
+
+        // Rare rocks
+        if (seededRandom(gx, gz) < 0.01) return { type: 'wall', biome };
     }
+
+    return { type: 'floor', biome };
 }
 
-// Function to check wall from grid
-function isWall(x, z) {
-    if (x < 0 || x >= MAP_SIZE || z < 0 || z >= MAP_SIZE) return true;
-    return mapGrid[x][z] === 1;
+// Get floor material for biome
+function getFloorMaterial(biome) {
+    if (biome === 'grass') return grassMat;
+    if (biome === 'sand') return sandMat;
+    return stoneMat;
 }
 
-for (let x = 0; x < MAP_SIZE; x++) {
-    for (let z = 0; z < MAP_SIZE; z++) {
-        const dx = x - MAP_SIZE / 2;
-        const dz = z - MAP_SIZE / 2;
-        const dist = Math.sqrt(dx * dx + dz * dz);
-        const isSafeZone = dist < 6;
+// Load a single tile
+function loadTile(gx, gz) {
+    const key = getTileKey(gx, gz);
+    if (loadedTiles.has(key)) return;
+    if (gx < 0 || gx >= MAP_SIZE || gz < 0 || gz >= MAP_SIZE) return;
 
-        const isWallBlock = isWall(x, z) && !isSafeZone;
+    const worldX = gx * TILE_SIZE;
+    const worldZ = gz * TILE_SIZE;
+    const tileInfo = getTileType(gx, gz);
 
-        // ALWAYS place floor first
-        tempObj.position.set(x * TILE_SIZE, -0.35, z * TILE_SIZE);
-        tempObj.updateMatrix();
-        floorMesh.setMatrixAt(floorCount, tempObj.matrix);
-        floorMesh.setColorAt(floorCount, new THREE.Color(1, 1, 1));
+    if (tileInfo.type === 'water') {
+        const water = new THREE.Mesh(voxelGeo, waterMaterial);
+        water.position.set(worldX, -0.40, worldZ);
+        water.receiveShadow = true;
+        scene.add(water);
+        objectsMap.set(key, { type: 'water', mesh: water });
+        loadedTiles.set(key, { mesh: water, gx, gz });
+    } else {
+        const floor = new THREE.Mesh(voxelGeo, getFloorMaterial(tileInfo.biome).clone());
+        floor.position.set(worldX, -0.35, worldZ);
+        floor.receiveShadow = true;
+        scene.add(floor);
 
-        const floorKey = getKey(x * TILE_SIZE, z * TILE_SIZE);
-
-        if (isWallBlock) {
-            tempObj.position.set(x * TILE_SIZE, 0.35, z * TILE_SIZE);
-            tempObj.updateMatrix();
-            caveWalls.setMatrixAt(wallCount, tempObj.matrix);
-            objectsMap.set(floorKey, { type: 'wall', instanceId: wallCount, floorId: floorCount });
-            wallCount++;
+        if (tileInfo.type === 'wall') {
+            const wall = new THREE.Mesh(voxelGeo, stoneWallMat.clone());
+            wall.position.set(worldX, 0.35, worldZ);
+            wall.castShadow = true;
+            wall.receiveShadow = true;
+            scene.add(wall);
+            objectsMap.set(key, { type: 'wall', mesh: wall, floorMesh: floor, hp: 1 });
+            loadedTiles.set(key, { mesh: wall, floor, gx, gz });
         } else {
-            objectsMap.set(floorKey, { type: 'floor', instanceId: floorCount, hp: 3 });
+            objectsMap.set(key, { type: 'floor', mesh: floor, hp: 3, isRebuilt: true });
+            loadedTiles.set(key, { mesh: floor, gx, gz });
         }
-
-        floorCount++;
     }
 }
 
-caveWalls.count = wallCount;
-caveWalls.instanceMatrix.needsUpdate = true;
-floorMesh.count = floorCount;
-floorMesh.instanceMatrix.needsUpdate = true;
-floorMesh.instanceColor.needsUpdate = true;
-
-// Helper to hide InstancedMesh floor tile
-function hideFloorInstance(instanceId) {
-    const matrix = new THREE.Matrix4();
-    floorMesh.getMatrixAt(instanceId, matrix);
-    const pos = new THREE.Vector3();
-    const quat = new THREE.Quaternion();
-    const scale = new THREE.Vector3();
-    matrix.decompose(pos, quat, scale);
-    const zeroMatrix = new THREE.Matrix4();
-    zeroMatrix.compose(pos, quat, new THREE.Vector3(0, 0, 0));
-    floorMesh.setMatrixAt(instanceId, zeroMatrix);
-    floorMesh.instanceMatrix.needsUpdate = true;
+// Unload a tile
+function unloadTile(key) {
+    const tile = loadedTiles.get(key);
+    if (!tile) return;
+    if (tile.mesh) scene.remove(tile.mesh);
+    if (tile.floor) scene.remove(tile.floor);
+    loadedTiles.delete(key);
+    objectsMap.delete(key);
 }
+
+// Update chunks around player
+let lastChunkX = -999, lastChunkZ = -999;
+
+function updateChunks(playerX, playerZ) {
+    const pgx = Math.round(playerX / TILE_SIZE);
+    const pgz = Math.round(playerZ / TILE_SIZE);
+
+    if (Math.abs(pgx - lastChunkX) < 5 && Math.abs(pgz - lastChunkZ) < 5) return;
+    lastChunkX = pgx;
+    lastChunkZ = pgz;
+
+    for (let dx = -VIEW_RADIUS; dx <= VIEW_RADIUS; dx++) {
+        for (let dz = -VIEW_RADIUS; dz <= VIEW_RADIUS; dz++) {
+            loadTile(pgx + dx, pgz + dz);
+        }
+    }
+
+    const unloadRadius = VIEW_RADIUS + 15;
+    for (const [key, tile] of loadedTiles) {
+        const dist = Math.max(Math.abs(tile.gx - pgx), Math.abs(tile.gz - pgz));
+        if (dist > unloadRadius) unloadTile(key);
+    }
+}
+
+// Dummy functions for old code compatibility
+function hideFloorInstance(instanceId) { }
+const floorMesh = { setColorAt: () => { }, setMatrixAt: () => { }, getMatrixAt: () => { }, instanceColor: { needsUpdate: false }, instanceMatrix: { needsUpdate: false } };
+const caveWalls = { setMatrixAt: () => { }, getMatrixAt: () => { }, instanceMatrix: { needsUpdate: false } };
 
 // === PLAYER ===
 let player;
@@ -399,6 +417,62 @@ function setupPlayer(texture, isCustomStitched, idleTexture, slashTexture) {
         playerShadow.rotation.x = -Math.PI / 2;
         playerShadow.position.set(player.position.x, 0.02, player.position.z + 0.05);
         scene.add(playerShadow);
+
+        // === STARTING ITEMS ===
+        const placeObjectOnGrid = (gx, gz, texture, type) => {
+            const key = getKey(gx * TILE_SIZE, gz * TILE_SIZE);
+            const worldX = gx * TILE_SIZE;
+            const worldZ = gz * TILE_SIZE;
+
+            // 1. Manually place floor & mark loaded to prevent overwrite
+            if (!loadedTiles.has(key)) {
+                const floor = new THREE.Mesh(voxelGeo, stoneFloorTex.clone());
+                floor.position.set(worldX, -0.35, worldZ);
+                floor.receiveShadow = true;
+                scene.add(floor);
+                loadedTiles.set(key, { mesh: floor, gx, gz });
+            }
+
+            // 2. Add Object as Mesh (Standard Material to react to light)
+            const mat = new THREE.MeshStandardMaterial({
+                map: texture,
+                transparent: true,
+                alphaTest: 0.5,
+                roughness: 1,
+                metalness: 0,
+                side: THREE.DoubleSide
+            });
+
+            // Size 0.8x0.8 fits well on 0.7 tile visual
+            const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.8), mat);
+
+            // Tilt slightly back (billboard style)
+            mesh.rotation.x = -Math.PI / 6;
+            // Lift up
+            mesh.position.set(worldX, 0.3, worldZ);
+
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            scene.add(mesh);
+
+            // Simple blob shadow (optional, but keep for style)
+            const shadow = new THREE.Mesh(
+                new THREE.PlaneGeometry(0.5, 0.25),
+                new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3 })
+            );
+            shadow.rotation.x = -Math.PI / 2;
+            shadow.position.set(worldX, 0.03, worldZ + 0.05);
+            scene.add(shadow);
+
+            // 3. Set collision
+            objectsMap.set(key, { type: type, mesh: mesh });
+        };
+
+        const startGx = Math.floor(MAP_SIZE / 2) + 2;
+        const startGz = Math.floor(MAP_SIZE / 2) + 2;
+
+        placeObjectOnGrid(startGx + 2, startGz, workbenchTex, 'workbench');
+        placeObjectOnGrid(startGx + 3, startGz, chestTex, 'chest');
     } else {
         player.material = mat;
     }
@@ -457,6 +531,7 @@ function triggerAttack() {
 }
 
 // === DESTROY BLOCK ===
+// === DESTROY BLOCK ===
 function destroyBlock() {
     triggerAttack();
     const x = selector.position.x;
@@ -464,151 +539,84 @@ function destroyBlock() {
     const key = getKey(x, z);
 
     // Prevent destroying floor too close to player
-    const distToPlayer = Math.sqrt((x - player.position.x) ** 2 + (z - player.position.z) ** 2);
-    const objCheck = objectsMap.get(key);
-    if (objCheck && objCheck.type === 'floor' && distToPlayer < 0.6) {
+    const dist = Math.sqrt((x - player.position.x) ** 2 + (z - player.position.z) ** 2);
+    const objData = objectsMap.get(key);
+
+    if (objData && (objData.type === 'floor' || objData.type === 'wood') && dist < 0.6) {
         console.log("Za blisko!");
         return;
     }
 
-    if (objectsMap.has(key)) {
-        const objData = objectsMap.get(key);
-
+    if (objData) {
         if (objData.type === 'built' || objData.type === 'torch') {
             scene.remove(objData.mesh);
-
-            // Create floor
-            const floorBlock = new THREE.Mesh(
-                new THREE.BoxGeometry(0.7, 0.7, 0.7),
-                new THREE.MeshStandardMaterial({ map: floorTexture, roughness: 0.9 })
-            );
-            floorBlock.position.set(x, -0.35, z);
-            floorBlock.receiveShadow = true;
-            scene.add(floorBlock);
-
-            objectsMap.set(key, { type: 'floor', mesh: floorBlock, hp: 3, isRebuilt: true });
+            // Create floor replacement for built wall
+            const floor = new THREE.Mesh(voxelGeo, stoneMat.clone());
+            floor.position.set(x, -0.35, z);
+            floor.receiveShadow = true;
+            scene.add(floor);
+            objectsMap.set(key, { type: 'floor', mesh: floor, hp: 3, isRebuilt: true });
 
         } else if (objData.type === 'rock') {
             scene.remove(objData.mesh);
-
-            const floorBlock = new THREE.Mesh(
-                new THREE.BoxGeometry(0.7, 0.7, 0.7),
-                new THREE.MeshStandardMaterial({ map: floorTexture, roughness: 0.9 })
-            );
-            floorBlock.position.set(x, -0.35, z);
-            floorBlock.receiveShadow = true;
-            scene.add(floorBlock);
-
-            objectsMap.set(key, { type: 'floor', mesh: floorBlock, hp: 3, isRebuilt: true });
+            const floor = new THREE.Mesh(voxelGeo, stoneMat.clone());
+            floor.position.set(x, -0.35, z);
+            floor.receiveShadow = true;
+            scene.add(floor);
+            objectsMap.set(key, { type: 'floor', mesh: floor, hp: 3, isRebuilt: true });
             spawnDrop(x, z);
 
         } else if (objData.type === 'wall') {
-            // Wall - destroy and reveal floor underneath
-            if (objData.mesh) {
-                scene.remove(objData.mesh);
-            } else if (objData.instanceId !== undefined) {
-                // Hide InstancedMesh wall by scaling to 0
-                const matrix = new THREE.Matrix4();
-                caveWalls.getMatrixAt(objData.instanceId, matrix);
-                const pos = new THREE.Vector3();
-                const quat = new THREE.Quaternion();
-                const scale = new THREE.Vector3();
-                matrix.decompose(pos, quat, scale);
-                const zeroMatrix = new THREE.Matrix4();
-                zeroMatrix.compose(pos, quat, new THREE.Vector3(0, 0, 0));
-                caveWalls.setMatrixAt(objData.instanceId, zeroMatrix);
-                caveWalls.instanceMatrix.needsUpdate = true;
+            // Destroy wall
+            scene.remove(objData.mesh);
+            spawnDrop(x, z);
+
+            // If chunks generated a floor underneath, it should still be in the scene but untracked or tracked differently?
+            // Actually, in loadedTiles we track 'floor' separately. But objectsMap only has the top object.
+            // In loadTile, we did: objectsMap.set(key, { type: 'wall', mesh: wall, floorMesh: floor, hp: 1 });
+
+            if (objData.floorMesh) {
+                // Reveal the floor underneath
+                objectsMap.set(key, { type: 'floor', mesh: objData.floorMesh, hp: 3 });
+            } else {
+                // Fallback
+                const floor = new THREE.Mesh(voxelGeo, stoneMat.clone());
+                floor.position.set(x, -0.35, z);
+                floor.receiveShadow = true;
+                scene.add(floor);
+                objectsMap.set(key, { type: 'floor', mesh: floor, hp: 3 });
             }
 
-            // Set to floor (use existing floor from InstancedMesh or create new)
-            if (objData.floorId !== undefined) {
-                objectsMap.set(key, { type: 'floor', instanceId: objData.floorId, hp: 3 });
-            } else {
-                const floorBlock = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.7, 0.7, 0.7),
-                    new THREE.MeshStandardMaterial({ map: floorTexture, roughness: 0.9 })
-                );
-                floorBlock.position.set(x, -0.35, z);
-                floorBlock.receiveShadow = true;
-                scene.add(floorBlock);
-                objectsMap.set(key, { type: 'floor', mesh: floorBlock, hp: 3, isRebuilt: true });
+        } else if (objData.type === 'wood') {
+            objData.hp--;
+            if (objData.hp === 1) {
+                if (objData.mesh.material.color) objData.mesh.material.color.setHex(0xaaaaaa);
+            } else if (objData.hp <= 0) {
+                scene.remove(objData.mesh);
+                spawnDrop(x, z, 'wood');
+
+                const floor = new THREE.Mesh(voxelGeo, stoneMat.clone());
+                floor.position.set(x, -0.35, z);
+                floor.receiveShadow = true;
+                scene.add(floor);
+                objectsMap.set(key, { type: 'floor', mesh: floor, hp: 3 });
             }
-            spawnDrop(x, z);
 
         } else if (objData.type === 'floor') {
             objData.hp--;
 
-            if (objData.hp === 2) {
-                if (objData.mesh) {
-                    if (!objData.mesh.userData.uniqueMaterial) {
-                        objData.mesh.material = objData.mesh.material.clone();
-                        objData.mesh.userData.uniqueMaterial = true;
-                    }
-                    objData.mesh.material.color.setHex(0xffee99);
-                } else if (objData.instanceId !== undefined) {
-                    floorMesh.setColorAt(objData.instanceId, new THREE.Color(1, 0.9, 0.7));
-                    floorMesh.instanceColor.needsUpdate = true;
-                }
-            } else if (objData.hp === 1) {
-                if (objData.mesh) {
-                    if (!objData.mesh.userData.uniqueMaterial) {
-                        objData.mesh.material = objData.mesh.material.clone();
-                        objData.mesh.userData.uniqueMaterial = true;
-                    }
-                    objData.mesh.material.color.setHex(0xff9966);
-                } else if (objData.instanceId !== undefined) {
-                    floorMesh.setColorAt(objData.instanceId, new THREE.Color(1, 0.6, 0.4));
-                    floorMesh.instanceColor.needsUpdate = true;
-                }
-            } else if (objData.hp <= 0) {
-                if (objData.mesh) {
-                    scene.remove(objData.mesh);
-                } else if (objData.instanceId !== undefined) {
-                    // Hide InstancedMesh tile by scaling to 0
-                    const matrix = new THREE.Matrix4();
-                    floorMesh.getMatrixAt(objData.instanceId, matrix);
-                    const pos = new THREE.Vector3();
-                    const quat = new THREE.Quaternion();
-                    const scale = new THREE.Vector3();
-                    matrix.decompose(pos, quat, scale);
-                    const zeroMatrix = new THREE.Matrix4();
-                    zeroMatrix.compose(pos, quat, new THREE.Vector3(0, 0, 0));
-                    floorMesh.setMatrixAt(objData.instanceId, zeroMatrix);
-                    floorMesh.instanceMatrix.needsUpdate = true;
-                }
-                objectsMap.delete(key);
-                spawnDrop(x, z);
+            // Visual damage
+            if (!objData.mesh.userData.uniqueMaterial) {
+                objData.mesh.material = objData.mesh.material.clone();
+                objData.mesh.userData.uniqueMaterial = true;
             }
-        } else if (objData.type === 'wood') {
-            // Wood floor - destructible like a block
-            objData.hp--;
 
-            if (objData.hp === 1) {
-                // Visual damage feedback
-                if (objData.mesh && !objData.mesh.userData.uniqueMaterial) {
-                    objData.mesh.material = objData.mesh.material.clone();
-                    objData.mesh.userData.uniqueMaterial = true;
-                }
-                if (objData.mesh) {
-                    objData.mesh.material.color.setHex(0xaa8866);
-                }
-            } else if (objData.hp <= 0) {
-                // Destroy wood, create visible floor underneath
-                if (objData.mesh) {
-                    scene.remove(objData.mesh);
-                }
-
-                // Create visible floor block
-                const floorBlock = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.7, 0.7, 0.7),
-                    new THREE.MeshStandardMaterial({ map: floorTexture, roughness: 0.9 })
-                );
-                floorBlock.position.set(x, -0.35, z);
-                floorBlock.receiveShadow = true;
-                scene.add(floorBlock);
-
-                objectsMap.set(key, { type: 'floor', mesh: floorBlock, hp: 3, isRebuilt: true });
-                spawnDrop(x, z, 'wood');
+            if (objData.hp === 2) objData.mesh.material.color.setHex(0xaaaaaa);
+            else if (objData.hp === 1) objData.mesh.material.color.setHex(0x555555);
+            else if (objData.hp <= 0) {
+                scene.remove(objData.mesh);
+                objectsMap.delete(key);
+                console.log("Dziura!");
             }
         }
     }
@@ -782,175 +790,6 @@ document.getElementById('btn-torch')?.addEventListener('touchstart', (e) => {
     placeTorch();
 });
 
-// === WORLD OBJECTS ===
-let worldSpawned = false;
-let crystalLight;
-
-function spawnWorldObjects() {
-    if (worldSpawned) return;
-    worldSpawned = true;
-
-    const cx = MAP_SIZE / 2 * TILE_SIZE;
-    const cz = MAP_SIZE / 2 * TILE_SIZE;
-
-    // (Crystal removed)
-
-    // (Rocks removed)
-
-    // Grass floor area (5x5)
-    const grassTexture = textureLoader.load(basePath + 'grass.png');
-    grassTexture.magFilter = THREE.NearestFilter;
-    grassTexture.minFilter = THREE.NearestFilter;
-
-    const grassMat = new THREE.MeshStandardMaterial({
-        map: grassTexture,
-        roughness: 0.9
-    });
-
-    // Create 5x5 grass area
-    const grassStartX = cx + 4 * TILE_SIZE;
-    const grassStartZ = cz - 2 * TILE_SIZE;
-
-    for (let gx = 0; gx < 5; gx++) {
-        for (let gz = 0; gz < 5; gz++) {
-            const posX = grassStartX + gx * TILE_SIZE;
-            const posZ = grassStartZ + gz * TILE_SIZE;
-            const key = getKey(posX, posZ);
-
-            // Hide original floor if it exists
-            const existingFloor = objectsMap.get(key);
-            if (existingFloor && existingFloor.instanceId !== undefined) {
-                hideFloorInstance(existingFloor.instanceId);
-            }
-
-            const grassFloor = new THREE.Mesh(
-                new THREE.BoxGeometry(0.7, 0.7, 0.7),
-                grassMat
-            );
-
-            grassFloor.position.set(posX, -0.35, posZ);
-            grassFloor.receiveShadow = true;
-            scene.add(grassFloor);
-
-            objectsMap.set(key, {
-                type: 'floor',
-                mesh: grassFloor,
-                hp: 3,
-                isRebuilt: true,
-                isGrass: true
-            });
-        }
-    }
-
-    // Wood floor area 1 (5x5)
-    const wood1Tex = textureLoader.load(basePath + 'wood1.jpg');
-    wood1Tex.magFilter = THREE.NearestFilter;
-    const wood1Mat = new THREE.MeshStandardMaterial({ map: wood1Tex, roughness: 0.8 });
-
-    const wood1StartX = cx - 6 * TILE_SIZE;
-    const wood1StartZ = cz + 4 * TILE_SIZE;
-
-    for (let wx = 0; wx < 5; wx++) {
-        for (let wz = 0; wz < 5; wz++) {
-            const posX = wood1StartX + wx * TILE_SIZE;
-            const posZ = wood1StartZ + wz * TILE_SIZE;
-            const key = getKey(posX, posZ);
-
-            // Hide original floor if it exists
-            const existingFloor = objectsMap.get(key);
-            if (existingFloor && existingFloor.instanceId !== undefined) {
-                hideFloorInstance(existingFloor.instanceId);
-            }
-
-            const woodFloor = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.7), wood1Mat);
-            woodFloor.position.set(posX, -0.35, posZ);
-            woodFloor.receiveShadow = true;
-            scene.add(woodFloor);
-            objectsMap.set(key, {
-                type: 'wood',
-                mesh: woodFloor,
-                hp: 2,
-                destructible: true,
-                dropType: 'wood'
-            });
-        }
-    }
-
-    // Wood floor area 2 (5x5)
-    const wood2Tex = textureLoader.load(basePath + 'wood2.jpg');
-    wood2Tex.magFilter = THREE.NearestFilter;
-    const wood2Mat = new THREE.MeshStandardMaterial({ map: wood2Tex, roughness: 0.8 });
-
-    const wood2StartX = cx - 6 * TILE_SIZE;
-    const wood2StartZ = cz - 6 * TILE_SIZE;
-
-    for (let wx = 0; wx < 5; wx++) {
-        for (let wz = 0; wz < 5; wz++) {
-            const posX = wood2StartX + wx * TILE_SIZE;
-            const posZ = wood2StartZ + wz * TILE_SIZE;
-            const key = getKey(posX, posZ);
-
-            // Hide original floor if it exists
-            const existingFloor = objectsMap.get(key);
-            if (existingFloor && existingFloor.instanceId !== undefined) {
-                hideFloorInstance(existingFloor.instanceId);
-            }
-
-            const woodFloor = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.7), wood2Mat);
-            woodFloor.position.set(posX, -0.35, posZ);
-            woodFloor.receiveShadow = true;
-            scene.add(woodFloor);
-            objectsMap.set(key, {
-                type: 'wood',
-                mesh: woodFloor,
-                hp: 2,
-                destructible: true,
-                dropType: 'wood'
-            });
-        }
-    }
-
-    // Water area 1 (3x3) - deep water (blocks movement)
-    const water1Tex = textureLoader.load(basePath + 'water1.jpg');
-    water1Tex.magFilter = THREE.NearestFilter;
-    const water1Mat = new THREE.MeshStandardMaterial({ map: water1Tex, roughness: 0.2, metalness: 0.3 });
-
-    const water1StartX = cx + 10 * TILE_SIZE;
-    const water1StartZ = cz - 5 * TILE_SIZE;
-
-    for (let wx = 0; wx < 3; wx++) {
-        for (let wz = 0; wz < 3; wz++) {
-            const waterFloor = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.7), water1Mat);
-            const posX = water1StartX + wx * TILE_SIZE;
-            const posZ = water1StartZ + wz * TILE_SIZE;
-            waterFloor.position.set(posX, -0.30, posZ);
-            waterFloor.receiveShadow = true;
-            scene.add(waterFloor);
-            objectsMap.set(getKey(posX, posZ), { type: 'water', mesh: waterFloor });
-        }
-    }
-
-    // Water area 2 with coast (4x4)
-    const water2Tex = textureLoader.load(basePath + 'water2.jpg');
-    water2Tex.magFilter = THREE.NearestFilter;
-    const water2Mat = new THREE.MeshStandardMaterial({ map: water2Tex, roughness: 0.2, metalness: 0.3 });
-
-    const water2StartX = cx + 10 * TILE_SIZE;
-    const water2StartZ = cz + 3 * TILE_SIZE;
-
-    for (let wx = 0; wx < 4; wx++) {
-        for (let wz = 0; wz < 4; wz++) {
-            const waterFloor = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.7), water2Mat);
-            const posX = water2StartX + wx * TILE_SIZE;
-            const posZ = water2StartZ + wz * TILE_SIZE;
-            waterFloor.position.set(posX, -0.30, posZ);
-            waterFloor.receiveShadow = true;
-            scene.add(waterFloor);
-            objectsMap.set(getKey(posX, posZ), { type: 'water', mesh: waterFloor });
-        }
-    }
-}
-
 // === GAME LOOP ===
 const clock = new THREE.Clock();
 const BASE_SPEED = 6.0; // Faster movement
@@ -963,7 +802,8 @@ function animate() {
 
     const delta = clock.getDelta(); // Time since last frame in seconds
 
-    spawnWorldObjects();
+    // Dynamic map loading
+    updateChunks(player.position.x, player.position.z);
 
     if (!player) return;
 
@@ -1163,7 +1003,106 @@ function animate() {
         camera.position.y = 7;
         camera.lookAt(camera.position.x, 0, camera.position.z - 5);
 
+        // Update UI Coords
+        const coordsDiv = document.getElementById('coords');
+        if (coordsDiv) {
+            const px = Math.round(player.position.x / TILE_SIZE);
+            const pz = Math.round(player.position.z / TILE_SIZE);
+            const dist = Math.round(Math.sqrt((px - CENTER) ** 2 + (pz - CENTER) ** 2));
+            coordsDiv.innerHTML = `Poz: ${px}, ${pz}<br>Dystans: ${dist}`;
+        }
+
         renderer.render(scene, camera);
+    }
+}
+
+// === MINIMAP ===
+const mapOverlay = document.getElementById('map-overlay');
+const mapCanvas = document.getElementById('map-canvas');
+const mapCtx = mapCanvas.getContext('2d');
+let isMapOpen = false;
+
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'm' || e.key === 'M') {
+        toggleMap();
+    }
+});
+
+function toggleMap() {
+    isMapOpen = !isMapOpen;
+    mapOverlay.style.display = isMapOpen ? 'flex' : 'none';
+    if (isMapOpen) {
+        drawMap();
+    }
+}
+
+function drawMap() {
+    if (!player) return;
+
+    // Clear canvas
+    mapCtx.fillStyle = '#000';
+    mapCtx.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
+
+    // Map settings
+    // Show 1000x1000 area around player
+    const drawRadius = 500;
+    const centerX = mapCanvas.width / 2;
+    const centerY = mapCanvas.height / 2;
+
+    // Player grid position
+    const pgx = Math.round(player.position.x / TILE_SIZE);
+    const pgz = Math.round(player.position.z / TILE_SIZE);
+
+    const startX = pgx - drawRadius;
+    const startZ = pgz - drawRadius;
+
+    const pixelSize = mapCanvas.width / (drawRadius * 2);
+
+    for (let x = 0; x < drawRadius * 2; x++) {
+        for (let z = 0; z < drawRadius * 2; z++) {
+            const worldX = startX + x;
+            const worldZ = startZ + z;
+
+            // Check bounds
+            if (worldX < 0 || worldX >= MAP_SIZE || worldZ < 0 || worldZ >= MAP_SIZE) continue;
+
+            // Get procedural tile data directly
+            const tileInfo = getTileType(worldX, worldZ);
+
+            // Determine color
+            let color = '#000';
+
+            if (tileInfo.type === 'wall') {
+                if (tileInfo.biome === 'stone') color = '#222';
+                else if (tileInfo.biome === 'grass') color = '#030';
+                else if (tileInfo.biome === 'sand') color = '#430';
+            } else if (tileInfo.type === 'water') {
+                color = '#33a';
+            } else {
+                // Floor
+                if (tileInfo.biome === 'stone') color = '#555';
+                else if (tileInfo.biome === 'grass') color = '#4a4';
+                else if (tileInfo.biome === 'sand') color = '#da6';
+            }
+
+            mapCtx.fillStyle = color;
+            // Use simple rects for efficiency
+            mapCtx.fillRect(x * pixelSize, z * pixelSize, pixelSize, pixelSize);
+        }
+    }
+
+    // Draw Player
+    mapCtx.fillStyle = 'red';
+    mapCtx.beginPath();
+    mapCtx.arc(centerX, centerY, 3, 0, Math.PI * 2);
+    mapCtx.fill(); // Player dot
+
+    // Draw Spawn (Center) if visible
+    const spawnScreenX = (CENTER - startX) * pixelSize;
+    const spawnScreenZ = (CENTER - startZ) * pixelSize;
+    if (spawnScreenX >= 0 && spawnScreenX < mapCanvas.width && spawnScreenZ >= 0 && spawnScreenZ < mapCanvas.height) {
+        mapCtx.fillStyle = 'cyan';
+        mapCtx.fillRect(spawnScreenX - 2, spawnScreenZ - 2, 4, 4);
     }
 }
 
