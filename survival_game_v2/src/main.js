@@ -262,6 +262,20 @@ floorMesh.count = floorCount;
 floorMesh.instanceMatrix.needsUpdate = true;
 floorMesh.instanceColor.needsUpdate = true;
 
+// Helper to hide InstancedMesh floor tile
+function hideFloorInstance(instanceId) {
+    const matrix = new THREE.Matrix4();
+    floorMesh.getMatrixAt(instanceId, matrix);
+    const pos = new THREE.Vector3();
+    const quat = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+    matrix.decompose(pos, quat, scale);
+    const zeroMatrix = new THREE.Matrix4();
+    zeroMatrix.compose(pos, quat, new THREE.Vector3(0, 0, 0));
+    floorMesh.setMatrixAt(instanceId, zeroMatrix);
+    floorMesh.instanceMatrix.needsUpdate = true;
+}
+
 // === PLAYER ===
 let player;
 let playerShadow;
@@ -414,10 +428,15 @@ const drops = [];
 const dropTexture = textureLoader.load(basePath + 'drop_stone.png');
 dropTexture.magFilter = THREE.NearestFilter;
 
-function spawnDrop(x, z) {
+const dropWoodTexture = textureLoader.load(basePath + 'wood1.jpg');
+dropWoodTexture.magFilter = THREE.NearestFilter;
+
+function spawnDrop(x, z, type = 'stone') {
+    const tex = type === 'wood' ? dropWoodTexture : dropTexture;
+
     const dropGeo = new THREE.PlaneGeometry(0.2, 0.2);
     const dropMat = new THREE.MeshBasicMaterial({
-        map: dropTexture,
+        map: tex,
         transparent: true,
         alphaTest: 0.5,
         side: THREE.DoubleSide
@@ -428,7 +447,7 @@ function spawnDrop(x, z) {
     drop.rotation.x = -Math.PI / 2;
 
     scene.add(drop);
-    drops.push({ mesh: drop, spawnTime: Date.now(), type: 'stone' });
+    drops.push({ mesh: drop, spawnTime: Date.now(), type: type });
 }
 
 function triggerAttack() {
@@ -484,31 +503,43 @@ function destroyBlock() {
             spawnDrop(x, z);
 
         } else if (objData.type === 'wall') {
-            const id = objData.instanceId;
-            const matrix = new THREE.Matrix4();
-            caveWalls.getMatrixAt(id, matrix);
+            // Wall - destroy and reveal floor underneath
+            if (objData.mesh) {
+                scene.remove(objData.mesh);
+            } else if (objData.instanceId !== undefined) {
+                // Hide InstancedMesh wall by scaling to 0
+                const matrix = new THREE.Matrix4();
+                caveWalls.getMatrixAt(objData.instanceId, matrix);
+                const pos = new THREE.Vector3();
+                const quat = new THREE.Quaternion();
+                const scale = new THREE.Vector3();
+                matrix.decompose(pos, quat, scale);
+                const zeroMatrix = new THREE.Matrix4();
+                zeroMatrix.compose(pos, quat, new THREE.Vector3(0, 0, 0));
+                caveWalls.setMatrixAt(objData.instanceId, zeroMatrix);
+                caveWalls.instanceMatrix.needsUpdate = true;
+            }
 
-            const pos = new THREE.Vector3();
-            const quat = new THREE.Quaternion();
-            const scale = new THREE.Vector3();
-            matrix.decompose(pos, quat, scale);
-
-            const zeroMatrix = new THREE.Matrix4();
-            zeroMatrix.compose(pos, quat, new THREE.Vector3(0, 0, 0));
-
-            caveWalls.setMatrixAt(id, zeroMatrix);
-            caveWalls.instanceMatrix.needsUpdate = true;
-
-            const floorId = objData.floorId;
-            objectsMap.set(key, { type: 'floor', instanceId: floorId, hp: 3 });
-            spawnDrop(pos.x, pos.z);
+            // Set to floor (use existing floor from InstancedMesh or create new)
+            if (objData.floorId !== undefined) {
+                objectsMap.set(key, { type: 'floor', instanceId: objData.floorId, hp: 3 });
+            } else {
+                const floorBlock = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.7, 0.7, 0.7),
+                    new THREE.MeshStandardMaterial({ map: floorTexture, roughness: 0.9 })
+                );
+                floorBlock.position.set(x, -0.35, z);
+                floorBlock.receiveShadow = true;
+                scene.add(floorBlock);
+                objectsMap.set(key, { type: 'floor', mesh: floorBlock, hp: 3, isRebuilt: true });
+            }
+            spawnDrop(x, z);
 
         } else if (objData.type === 'floor') {
             objData.hp--;
 
             if (objData.hp === 2) {
-                if (objData.isRebuilt && objData.mesh) {
-                    // Clone material to avoid affecting all blocks of this type
+                if (objData.mesh) {
                     if (!objData.mesh.userData.uniqueMaterial) {
                         objData.mesh.material = objData.mesh.material.clone();
                         objData.mesh.userData.uniqueMaterial = true;
@@ -519,8 +550,7 @@ function destroyBlock() {
                     floorMesh.instanceColor.needsUpdate = true;
                 }
             } else if (objData.hp === 1) {
-                if (objData.isRebuilt && objData.mesh) {
-                    // Clone material if not already cloned
+                if (objData.mesh) {
                     if (!objData.mesh.userData.uniqueMaterial) {
                         objData.mesh.material = objData.mesh.material.clone();
                         objData.mesh.userData.uniqueMaterial = true;
@@ -531,9 +561,10 @@ function destroyBlock() {
                     floorMesh.instanceColor.needsUpdate = true;
                 }
             } else if (objData.hp <= 0) {
-                if (objData.isRebuilt && objData.mesh) {
+                if (objData.mesh) {
                     scene.remove(objData.mesh);
                 } else if (objData.instanceId !== undefined) {
+                    // Hide InstancedMesh tile by scaling to 0
                     const matrix = new THREE.Matrix4();
                     floorMesh.getMatrixAt(objData.instanceId, matrix);
                     const pos = new THREE.Vector3();
@@ -547,6 +578,37 @@ function destroyBlock() {
                 }
                 objectsMap.delete(key);
                 spawnDrop(x, z);
+            }
+        } else if (objData.type === 'wood') {
+            // Wood floor - destructible like a block
+            objData.hp--;
+
+            if (objData.hp === 1) {
+                // Visual damage feedback
+                if (objData.mesh && !objData.mesh.userData.uniqueMaterial) {
+                    objData.mesh.material = objData.mesh.material.clone();
+                    objData.mesh.userData.uniqueMaterial = true;
+                }
+                if (objData.mesh) {
+                    objData.mesh.material.color.setHex(0xaa8866);
+                }
+            } else if (objData.hp <= 0) {
+                // Destroy wood, create visible floor underneath
+                if (objData.mesh) {
+                    scene.remove(objData.mesh);
+                }
+
+                // Create visible floor block
+                const floorBlock = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.7, 0.7, 0.7),
+                    new THREE.MeshStandardMaterial({ map: floorTexture, roughness: 0.9 })
+                );
+                floorBlock.position.set(x, -0.35, z);
+                floorBlock.receiveShadow = true;
+                scene.add(floorBlock);
+
+                objectsMap.set(key, { type: 'floor', mesh: floorBlock, hp: 3, isRebuilt: true });
+                spawnDrop(x, z, 'wood');
             }
         }
     }
@@ -731,60 +793,9 @@ function spawnWorldObjects() {
     const cx = MAP_SIZE / 2 * TILE_SIZE;
     const cz = MAP_SIZE / 2 * TILE_SIZE;
 
-    // Crystal
-    const crystalTex = textureLoader.load(basePath + 'crystal_rock.png');
-    crystalTex.magFilter = THREE.NearestFilter;
+    // (Crystal removed)
 
-    const crystalMat = new THREE.MeshStandardMaterial({
-        map: crystalTex,
-        transparent: true,
-        alphaTest: 0.5,
-        side: THREE.DoubleSide,
-        roughness: 0.4,
-        metalness: 0.3
-    });
-
-    const crystalGeo = new THREE.PlaneGeometry(1.5, 1.5);
-    const crystalGroup = new THREE.Group();
-
-    const plane1 = new THREE.Mesh(crystalGeo, crystalMat);
-    plane1.position.y = 0.75;
-    crystalGroup.add(plane1);
-
-    const plane2 = new THREE.Mesh(crystalGeo, crystalMat);
-    plane2.rotation.y = Math.PI / 2;
-    plane2.position.y = 0.75;
-    crystalGroup.add(plane2);
-
-    crystalGroup.position.set(cx, 0, cz);
-    scene.add(crystalGroup);
-
-    crystalLight = new THREE.PointLight(0xaaddff, 3, 10);
-    crystalLight.position.set(cx, 1.5, cz);
-    scene.add(crystalLight);
-
-    objectsMap.set(getKey(cx, cz), { type: 'solid', mesh: crystalGroup });
-
-    // Rocks
-    const rockGeo = new THREE.BoxGeometry(0.7, 0.7, 0.7);
-    const rockMat = new THREE.MeshStandardMaterial({ map: blockTexture, roughness: 0.9 });
-
-    const rockPositions = [
-        { x: cx - 2 * TILE_SIZE, z: cz + 2 * TILE_SIZE },
-        { x: cx + 2 * TILE_SIZE, z: cz + 3 * TILE_SIZE },
-        { x: cx - 4 * TILE_SIZE, z: cz - 1 * TILE_SIZE },
-        { x: cx + 1 * TILE_SIZE, z: cz + 4 * TILE_SIZE },
-        { x: cx - 3 * TILE_SIZE, z: cz + 3 * TILE_SIZE }
-    ];
-
-    rockPositions.forEach(pos => {
-        const rock = new THREE.Mesh(rockGeo, rockMat);
-        rock.position.set(pos.x, 0.35, pos.z);
-        rock.castShadow = true;
-        rock.receiveShadow = true;
-        scene.add(rock);
-        objectsMap.set(getKey(pos.x, pos.z), { type: 'rock', mesh: rock, hp: 1, destructible: true });
-    });
+    // (Rocks removed)
 
     // Grass floor area (5x5)
     const grassTexture = textureLoader.load(basePath + 'grass.png');
@@ -802,19 +813,26 @@ function spawnWorldObjects() {
 
     for (let gx = 0; gx < 5; gx++) {
         for (let gz = 0; gz < 5; gz++) {
+            const posX = grassStartX + gx * TILE_SIZE;
+            const posZ = grassStartZ + gz * TILE_SIZE;
+            const key = getKey(posX, posZ);
+
+            // Hide original floor if it exists
+            const existingFloor = objectsMap.get(key);
+            if (existingFloor && existingFloor.instanceId !== undefined) {
+                hideFloorInstance(existingFloor.instanceId);
+            }
+
             const grassFloor = new THREE.Mesh(
                 new THREE.BoxGeometry(0.7, 0.7, 0.7),
                 grassMat
             );
 
-            const posX = grassStartX + gx * TILE_SIZE;
-            const posZ = grassStartZ + gz * TILE_SIZE;
-
             grassFloor.position.set(posX, -0.35, posZ);
             grassFloor.receiveShadow = true;
             scene.add(grassFloor);
 
-            objectsMap.set(getKey(posX, posZ), {
+            objectsMap.set(key, {
                 type: 'floor',
                 mesh: grassFloor,
                 hp: 3,
@@ -834,13 +852,27 @@ function spawnWorldObjects() {
 
     for (let wx = 0; wx < 5; wx++) {
         for (let wz = 0; wz < 5; wz++) {
-            const woodFloor = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.7), wood1Mat);
             const posX = wood1StartX + wx * TILE_SIZE;
             const posZ = wood1StartZ + wz * TILE_SIZE;
+            const key = getKey(posX, posZ);
+
+            // Hide original floor if it exists
+            const existingFloor = objectsMap.get(key);
+            if (existingFloor && existingFloor.instanceId !== undefined) {
+                hideFloorInstance(existingFloor.instanceId);
+            }
+
+            const woodFloor = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.7), wood1Mat);
             woodFloor.position.set(posX, -0.35, posZ);
             woodFloor.receiveShadow = true;
             scene.add(woodFloor);
-            objectsMap.set(getKey(posX, posZ), { type: 'floor', mesh: woodFloor, hp: 3, isRebuilt: true });
+            objectsMap.set(key, {
+                type: 'wood',
+                mesh: woodFloor,
+                hp: 2,
+                destructible: true,
+                dropType: 'wood'
+            });
         }
     }
 
@@ -854,13 +886,27 @@ function spawnWorldObjects() {
 
     for (let wx = 0; wx < 5; wx++) {
         for (let wz = 0; wz < 5; wz++) {
-            const woodFloor = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.7), wood2Mat);
             const posX = wood2StartX + wx * TILE_SIZE;
             const posZ = wood2StartZ + wz * TILE_SIZE;
+            const key = getKey(posX, posZ);
+
+            // Hide original floor if it exists
+            const existingFloor = objectsMap.get(key);
+            if (existingFloor && existingFloor.instanceId !== undefined) {
+                hideFloorInstance(existingFloor.instanceId);
+            }
+
+            const woodFloor = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.7), wood2Mat);
             woodFloor.position.set(posX, -0.35, posZ);
             woodFloor.receiveShadow = true;
             scene.add(woodFloor);
-            objectsMap.set(getKey(posX, posZ), { type: 'floor', mesh: woodFloor, hp: 3, isRebuilt: true });
+            objectsMap.set(key, {
+                type: 'wood',
+                mesh: woodFloor,
+                hp: 2,
+                destructible: true,
+                dropType: 'wood'
+            });
         }
     }
 
@@ -965,7 +1011,7 @@ function animate() {
                 collision = true; break;
             }
             const objData = objectsMap.get(k);
-            if (objData.type !== 'torch' && objData.type !== 'floor') {
+            if (objData.type !== 'torch' && objData.type !== 'floor' && objData.type !== 'wood') {
                 if (objData.type === 'water') {
                     // Water blocks movement
                     collision = true; break;
