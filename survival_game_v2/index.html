@@ -177,10 +177,66 @@
         #btn-torch {
             background: rgba(200, 100, 0, 0.5);
         }
+
+        /* Rotate Overlay (Portrait Mode) */
+        #rotate-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #111;
+            z-index: 20000;
+            color: white;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        #rotate-overlay .icon {
+            font-size: 50px;
+            margin-bottom: 20px;
+            animation: spin 2s infinite ease-in-out;
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            40% {
+                transform: rotate(90deg);
+            }
+
+            100% {
+                transform: rotate(90deg);
+            }
+        }
+
+        @media screen and (orientation: portrait) and (max-width: 900px) {
+            #rotate-overlay {
+                display: flex;
+            }
+
+            #joystick-zone,
+            #mobile-buttons {
+                display: none !important;
+            }
+        }
     </style>
 </head>
 
 <body>
+    <!-- Rotate Instruction Overlay -->
+    <div id="rotate-overlay">
+        <div class="icon">📱</div>
+        <h2>Obróć telefon</h2>
+        <p>Ta gra wymaga trybu poziomego<br>(Landscape)</p>
+    </div>
+
     <!-- Loading Screen -->
     <div id="loading">
         <h1>🔥 Survival Game</h1>
