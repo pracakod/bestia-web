@@ -19,7 +19,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 // Handle Resize
-window.addEventListener('resize', () => {
+function handleResize() {
     const w = window.innerWidth;
     const h = window.innerHeight;
     renderer.setSize(w, h);
@@ -30,7 +30,11 @@ window.addEventListener('resize', () => {
     camera.top = s;
     camera.bottom = -s;
     camera.updateProjectionMatrix();
-});
+}
+window.addEventListener('resize', handleResize);
+window.addEventListener('orientationchange', () => setTimeout(handleResize, 100));
+// Initial resize after page load
+setTimeout(handleResize, 50);
 
 // === AMBIENT LIGHT ===
 const ambient = new THREE.AmbientLight(0x222233, 0.15);
