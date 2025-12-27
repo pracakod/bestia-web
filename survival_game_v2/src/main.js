@@ -903,7 +903,7 @@ function spawnWorldObjects() {
 
 // === GAME LOOP ===
 const clock = new THREE.Clock();
-const BASE_SPEED = 4.0; // Units per second
+const BASE_SPEED = 6.0; // Faster movement
 let lastFacing = { x: 0, y: 1 };
 let isGameRunning = false;
 
