@@ -235,14 +235,43 @@
         <div class="icon">📱</div>
         <h2>Obróć telefon</h2>
         <p>Ta gra wymaga trybu poziomego<br>(Landscape)</p>
+        <button id="btn-fullscreen"
+            style="margin-top: 20px; padding: 10px 20px; font-size: 18px; background: #ff9900; border: none; color: white; border-radius: 8px;">
+            Pełny Ekran ⛶
+        </button>
     </div>
 
     <!-- Loading Screen -->
     <div id="loading">
         <h1>🔥 Survival Game</h1>
-        <div class="loader"></div>
-        <p style="margin-top: 1rem; color: rgba(255,255,255,0.6);">Loading resources...</p>
+        <div class="spinner"></div>
     </div>
+
+    <script>
+        // Fullscreen and Orientation Lock
+        const btnFullscreen = document.getElementById('btn-fullscreen');
+        btnFullscreen.addEventListener('click', async () => {
+            try {
+                if (document.documentElement.requestFullscreen) {
+                    await document.documentElement.requestFullscreen();
+                } else if (document.documentElement.webkitRequestFullscreen) {
+                    await document.documentElement.webkitRequestFullscreen(); // Safari
+                }
+
+                // Try to lock orientation (Android only usually)
+                if (screen.orientation && screen.orientation.lock) {
+                    try {
+                        await screen.orientation.lock('landscape');
+                    } catch (err) {
+                        console.log('Orientation lock not supported:', err);
+                    }
+                }
+            } catch (err) {
+                console.error('Fullscreen error:', err);
+            }
+        });
+    </script>
+    <p style="margin-top: 1rem; color: rgba(255,255,255,0.6);">Loading resources...</p>
 
     <!-- Character Selection (hidden) -->
     <div id="char-selection"></div>
