@@ -305,7 +305,52 @@
         <button class="action-btn" id="btn-torch">🔥</button>
     </div>
 
-    <script type="module" src="./src/main.js?v=3"></script>
+    <script>
+        // DEBUG CONSOLE ON SCREEN
+        const debugLog = document.createElement('div');
+        debugLog.style.position = 'fixed';
+        debugLog.style.bottom = '0';
+        debugLog.style.left = '0';
+        debugLog.style.width = '100%';
+        debugLog.style.height = '150px';
+        debugLog.style.background = 'rgba(0,0,0,0.8)';
+        debugLog.style.color = '#0f0';
+        debugLog.style.fontSize = '10px';
+        debugLog.style.overflowY = 'scroll';
+        debugLog.style.zIndex = '99999';
+        debugLog.style.pointerEvents = 'none';
+        document.body.appendChild(debugLog);
+
+        const oldLog = console.log;
+        const oldErr = console.error;
+        const oldWarn = console.warn;
+
+        function logToScreen(msg, color) {
+            const el = document.createElement('div');
+            el.style.color = color || '#0f0';
+            el.textContent = '> ' + msg;
+            debugLog.appendChild(el);
+            debugLog.scrollTop = debugLog.scrollHeight;
+        }
+
+        console.log = function (...args) {
+            oldLog.apply(console, args);
+            logToScreen(args.join(' '));
+        };
+        console.error = function (...args) {
+            oldErr.apply(console, args);
+            logToScreen('ERR: ' + args.join(' '), '#f55');
+        };
+        console.warn = function (...args) {
+            oldWarn.apply(console, args);
+            logToScreen('WARN: ' + args.join(' '), '#fa0');
+        };
+
+        window.onerror = function (message, source, lineno, colno, error) {
+            logToScreen(`CRASH: ${message} (${source}:${lineno})`, '#f00');
+        };
+    </script>
+    <script type="module" src="./src/main.js?v=4"></script>
 </body>
 
 </html>
