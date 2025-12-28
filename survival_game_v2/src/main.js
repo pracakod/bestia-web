@@ -60,8 +60,8 @@ const TILE_SIZE = 0.7;
 const MAP_SIZE = 5000; // MASSIVE MAP
 const VIEW_RADIUS = 22; // Reduced for performance
 const CENTER = MAP_SIZE / 2;
-const GAME_VERSION = "v0.9.0";
-const LAST_UPDATE = "Optimized Chunk Rendering";
+const GAME_VERSION = "v1.0.0";
+const LAST_UPDATE = "Smooth Player Interpolation";
 
 // Biome thresholds (distance from center)
 const STONE_RADIUS = 800;  // Inner stone/cave biome
@@ -624,13 +624,13 @@ function setupPlayer(texture, isCustomStitched, idleTexture, slashTexture) {
         // === INITIALIZE MULTIPLAYER ===
         console.log('Main: Starting multiplayer init...');
         multiplayer = initMultiplayer(
-            // Position update
+            // Position update - store target for interpolation
             (data) => {
                 const p = otherPlayers.get(data.id);
                 if (p) {
-                    p.mesh.position.set(data.x, 0.6, data.z);
-                    p.shadow.position.set(data.x, 0.02, data.z + 0.05);
-                    p.label.position.set(data.x, 1.8, data.z); // Slightly lower label
+                    // Store target position for smooth interpolation
+                    p.targetX = data.x;
+                    p.targetZ = data.z;
 
                     // Update Animation States
                     p.isMoving = data.moving;
@@ -671,7 +671,9 @@ function setupPlayer(texture, isCustomStitched, idleTexture, slashTexture) {
                     slashTex: slashT,
                     isMoving: false,
                     isAttacking: false,
-                    facingRight: true
+                    facingRight: true,
+                    targetX: 0,
+                    targetZ: 0
                 });
                 console.log('Player joined:', id, 'as Gracz', number);
             },
@@ -1294,6 +1296,18 @@ function animate() {
 
         // ANIMATION FOR OTHER PLAYERS
         for (const p of otherPlayers.values()) {
+            // === SMOOTH POSITION INTERPOLATION ===
+            // Interpolate toward target position for smooth movement
+            const lerpFactor = 0.15; // Smoothness (lower = smoother but delayed)
+            const currentX = p.mesh.position.x;
+            const currentZ = p.mesh.position.z;
+            const newX = currentX + (p.targetX - currentX) * lerpFactor;
+            const newZ = currentZ + (p.targetZ - currentZ) * lerpFactor;
+
+            p.mesh.position.set(newX, 0.6, newZ);
+            p.shadow.position.set(newX, 0.02, newZ + 0.05);
+            p.label.position.set(newX, 1.8, newZ);
+
             if (isSpriteSheet && player.userData.isStitched) {
                 let currentTex = p.idleTex;
                 let count = 12;
