@@ -60,8 +60,8 @@ const TILE_SIZE = 0.7;
 const MAP_SIZE = 5000; // MASSIVE MAP
 const VIEW_RADIUS = 22; // Reduced for performance
 const CENTER = MAP_SIZE / 2;
-const GAME_VERSION = "v0.7.0";
-const LAST_UPDATE = "Sync Actions & Animations";
+const GAME_VERSION = "v0.8.0";
+const LAST_UPDATE = "World Persistence & Optimized";
 
 // Biome thresholds (distance from center)
 const STONE_RADIUS = 800;  // Inner stone/cave biome
@@ -604,6 +604,22 @@ function setupPlayer(texture, isCustomStitched, idleTexture, slashTexture) {
                 }
             }
         );
+
+        // === LOAD SAVED WORLD MUTATIONS ===
+        if (multiplayer && multiplayer.loadMutations) {
+            multiplayer.loadMutations().then(mutations => {
+                console.log('Applying', mutations.length, 'mutations to world...');
+                for (const m of mutations) {
+                    if (m.mutation_type === 'destroy') {
+                        destroyBlock(m.x, m.z, true);
+                    } else if (m.mutation_type === 'build') {
+                        placeBlock(m.x, m.z, true);
+                    } else if (m.mutation_type === 'torch') {
+                        placeTorch(m.x, m.z, true);
+                    }
+                }
+            });
+        }
     } else {
         player.material = mat;
     }
@@ -674,6 +690,10 @@ function destroyBlock(tx, tz, isRemote = false) {
 
     if (!isRemote && multiplayer && multiplayer.sendAction) {
         multiplayer.sendAction('destroy', x, z);
+        // Save to database for persistence
+        if (multiplayer.saveMutation) {
+            multiplayer.saveMutation('destroy', x, z);
+        }
     }
 
     // Prevent destroying floor too close to player (only for local)
@@ -780,6 +800,9 @@ function placeBlock(tx, tz, isRemote = false) {
 
     if (!isRemote && multiplayer && multiplayer.sendAction) {
         multiplayer.sendAction('build', x, z);
+        if (multiplayer.saveMutation) {
+            multiplayer.saveMutation('build', x, z);
+        }
     }
 
     const dist = Math.sqrt((x - player.position.x) ** 2 + (z - player.position.z) ** 2);
@@ -835,6 +858,9 @@ function placeTorch(tx, tz, isRemote = false) {
 
     if (!isRemote && multiplayer && multiplayer.sendAction) {
         multiplayer.sendAction('torch', x, z);
+        if (multiplayer.saveMutation) {
+            multiplayer.saveMutation('torch', x, z);
+        }
     }
 
     if (!objectsMap.has(key)) {
@@ -985,8 +1011,9 @@ function animate() {
 
     let isMoving = (Math.abs(dx) > 0 || Math.abs(dy) > 0);
 
-    // MULTIPLAYER POS SYNC (Throttle 100ms)
-    if (multiplayer && Date.now() - lastNetUpdate > 100) {
+    // MULTIPLAYER POS SYNC (Throttle 200ms - optimized for Supabase limits)
+    // Only send when moving or attacking to save bandwidth
+    if (multiplayer && Date.now() - lastNetUpdate > 200 && (isMoving || isAttacking)) {
         const facingRight = lastFacing.x >= 0;
         multiplayer.sendPosition(player.position.x, player.position.z, input.x, input.y, isMoving, isAttacking, facingRight);
         lastNetUpdate = Date.now();

@@ -91,6 +91,34 @@ export function initMultiplayer(onPlayerUpdate, onPlayerJoin, onPlayerLeave, onS
                 });
             }
         },
+        // Save a world mutation to the database
+        saveMutation: async (type, x, z) => {
+            if (!supabaseClient) return;
+            try {
+                await supabaseClient
+                    .from('world_mutations')
+                    .insert({ mutation_type: type, x, z });
+                console.log('Mutation saved:', type, x, z);
+            } catch (err) {
+                console.error('Failed to save mutation:', err);
+            }
+        },
+        // Load all world mutations from the database
+        loadMutations: async () => {
+            if (!supabaseClient) return [];
+            try {
+                const { data, error } = await supabaseClient
+                    .from('world_mutations')
+                    .select('*')
+                    .order('created_at', { ascending: true });
+                if (error) throw error;
+                console.log('Loaded mutations:', data?.length || 0);
+                return data || [];
+            } catch (err) {
+                console.error('Failed to load mutations:', err);
+                return [];
+            }
+        },
         myPlayerId
     };
 }
