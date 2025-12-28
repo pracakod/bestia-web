@@ -7,7 +7,7 @@ scene.background = new THREE.Color(0x050505);
 
 // Orthographic Camera for 2.5D view
 const aspect = window.innerWidth / window.innerHeight;
-const s = 4; // Camera zoom (was 5, smaller = closer)
+const s = 3.5; // Camera zoom (was 4, smaller = closer)
 const camera = new THREE.OrthographicCamera(-s * aspect, s * aspect, s, -s, 0.1, 1000);
 camera.position.set(0, 12, 10);
 camera.lookAt(0, 0, 0);
@@ -25,7 +25,7 @@ function handleResize() {
     const h = window.innerHeight;
     renderer.setSize(w, h);
     const aspect = w / h;
-    const s = 4; // Must match above
+    const s = 3.5; // Must match above
     camera.left = -s * aspect;
     camera.right = s * aspect;
     camera.top = s;
@@ -60,8 +60,8 @@ const TILE_SIZE = 0.7;
 const MAP_SIZE = 5000; // MASSIVE MAP
 const VIEW_RADIUS = 15; // Reduced for performance (was 22)
 const CENTER = MAP_SIZE / 2;
-const GAME_VERSION = "v1.4.0";
-const LAST_UPDATE = "Periodic World Sync (5s)";
+const GAME_VERSION = "v1.5.0";
+const LAST_UPDATE = "Closer Camera & Slower Speed";
 
 // Biome thresholds (distance from center)
 const STONE_RADIUS = 800;  // Inner stone/cave biome
@@ -1224,7 +1224,7 @@ document.getElementById('btn-torch')?.addEventListener('touchstart', (e) => {
 
 // === GAME LOOP ===
 const clock = new THREE.Clock();
-const BASE_SPEED = 6.0; // Faster movement
+const BASE_SPEED = 4.5; // Movement speed (was 6.0)
 let lastFacing = { x: 0, y: 1 };
 let isGameRunning = false;
 let lastNetUpdate = 0; // For multiplayer throttling
