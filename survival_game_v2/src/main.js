@@ -1640,6 +1640,26 @@ function drawMap() {
         mapCtx.fillStyle = 'cyan';
         mapCtx.fillRect(spawnScreenX - 2, spawnScreenZ - 2, 4, 4);
     }
+
+    // Draw Other Players (blue dots)
+    for (const p of otherPlayers.values()) {
+        const otherGx = Math.round(p.mesh.position.x / TILE_SIZE);
+        const otherGz = Math.round(p.mesh.position.z / TILE_SIZE);
+        const otherScreenX = (otherGx - startX) * pixelSize;
+        const otherScreenZ = (otherGz - startZ) * pixelSize;
+
+        if (otherScreenX >= 0 && otherScreenX < mapCanvas.width && otherScreenZ >= 0 && otherScreenZ < mapCanvas.height) {
+            mapCtx.fillStyle = '#00f';
+            mapCtx.beginPath();
+            mapCtx.arc(otherScreenX, otherScreenZ, 4, 0, Math.PI * 2);
+            mapCtx.fill();
+
+            // Draw label
+            mapCtx.fillStyle = 'white';
+            mapCtx.font = '10px monospace';
+            mapCtx.fillText('Gracz', otherScreenX + 6, otherScreenZ + 3);
+        }
+    }
 }
 
 // === AUTO START ===
