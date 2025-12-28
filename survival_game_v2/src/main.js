@@ -664,7 +664,10 @@ function triggerAttack() {
 // === DESTROY BLOCK ===
 // === DESTROY BLOCK ===
 function destroyBlock(tx, tz, isRemote = false) {
-    triggerAttack();
+    // Only trigger attack animation for local player
+    if (!isRemote) {
+        triggerAttack();
+    }
     const x = tx !== undefined ? tx : selector.position.x;
     const z = tz !== undefined ? tz : selector.position.z;
     const key = getKey(x, z);
