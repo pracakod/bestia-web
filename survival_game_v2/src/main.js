@@ -44,8 +44,8 @@ scene.add(ambient);
 const dirLight = new THREE.DirectionalLight(0xaabbcc, 0.25);
 dirLight.position.set(30, 50, 30);
 dirLight.castShadow = true;
-dirLight.shadow.mapSize.width = 2048;
-dirLight.shadow.mapSize.height = 2048;
+dirLight.shadow.mapSize.width = 1024; // Optimized from 2048
+dirLight.shadow.mapSize.height = 1024;
 dirLight.shadow.camera.near = 0.5;
 dirLight.shadow.camera.far = 150;
 dirLight.shadow.camera.left = -50;
@@ -57,7 +57,7 @@ scene.add(dirLight);
 // === CONSTANTS ===
 const TILE_SIZE = 0.7;
 const MAP_SIZE = 5000; // MASSIVE MAP
-const VIEW_RADIUS = 35; // Tiles visible around player
+const VIEW_RADIUS = 22; // Reduced for performance
 const CENTER = MAP_SIZE / 2;
 
 // Biome thresholds (distance from center)
@@ -272,7 +272,7 @@ function updateChunks(playerX, playerZ) {
     const pgx = Math.round(playerX / TILE_SIZE);
     const pgz = Math.round(playerZ / TILE_SIZE);
 
-    if (Math.abs(pgx - lastChunkX) < 5 && Math.abs(pgz - lastChunkZ) < 5) return;
+    if (Math.abs(pgx - lastChunkX) < 2 && Math.abs(pgz - lastChunkZ) < 2) return;
     lastChunkX = pgx;
     lastChunkZ = pgz;
 
@@ -282,7 +282,7 @@ function updateChunks(playerX, playerZ) {
         }
     }
 
-    const unloadRadius = VIEW_RADIUS + 15;
+    const unloadRadius = VIEW_RADIUS + 5; // Aggressive unload
     for (const [key, tile] of loadedTiles) {
         const dist = Math.max(Math.abs(tile.gx - pgx), Math.abs(tile.gz - pgz));
         if (dist > unloadRadius) unloadTile(key);
