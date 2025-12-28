@@ -60,6 +60,8 @@ const TILE_SIZE = 0.7;
 const MAP_SIZE = 5000; // MASSIVE MAP
 const VIEW_RADIUS = 22; // Reduced for performance
 const CENTER = MAP_SIZE / 2;
+const GAME_VERSION = "v0.6.1";
+const LAST_UPDATE = "Multiplayer & Nicknames";
 
 // Biome thresholds (distance from center)
 const STONE_RADIUS = 800;  // Inner stone/cave biome
@@ -1020,7 +1022,12 @@ function animate() {
     const pIz = Math.round(player.position.z / TILE_SIZE);
     const coordsEl = document.getElementById('coords');
     if (coordsEl) {
-        coordsEl.innerHTML = `Gracz: ${pIx} / ${pIz}<br>Cel: ${sIx} / ${sIz}`;
+        coordsEl.innerHTML = `
+            <b>${GAME_VERSION}</b><br>
+            <small>${LAST_UPDATE}</small><hr style="border:0;border-top:1px solid rgba(255,255,255,0.2);margin:4px 0;">
+            Gracz: ${pIx} / ${pIz}<br>
+            Cel: ${sIx} / ${sIz}
+        `;
     }
 
     // ANIMATION
