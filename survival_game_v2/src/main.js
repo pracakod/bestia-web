@@ -1572,6 +1572,46 @@ document.getElementById('btn-close-map')?.addEventListener('click', () => {
     mapOverlay.style.display = 'none';
 });
 
+// Map zoom level (adjustable with pinch)
+let mapZoom = 500; // drawRadius - smaller = closer zoom
+const MAP_ZOOM_MIN = 100;
+const MAP_ZOOM_MAX = 1000;
+let lastPinchDist = 0;
+
+// Pinch-to-zoom handlers
+mapCanvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        lastPinchDist = Math.sqrt(dx * dx + dy * dy);
+    }
+}, { passive: true });
+
+mapCanvas.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2 && lastPinchDist > 0) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        const delta = lastPinchDist - dist;
+        mapZoom = Math.max(MAP_ZOOM_MIN, Math.min(MAP_ZOOM_MAX, mapZoom + delta * 2));
+        lastPinchDist = dist;
+
+        drawMap(); // Redraw with new zoom
+    }
+}, { passive: true });
+
+mapCanvas.addEventListener('touchend', () => {
+    lastPinchDist = 0;
+}, { passive: true });
+
+// Mouse wheel zoom for desktop
+mapCanvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    mapZoom = Math.max(MAP_ZOOM_MIN, Math.min(MAP_ZOOM_MAX, mapZoom + e.deltaY * 0.5));
+    drawMap();
+}, { passive: false });
+
 function drawMap() {
     if (!player) return;
 
@@ -1579,9 +1619,8 @@ function drawMap() {
     mapCtx.fillStyle = '#000';
     mapCtx.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
 
-    // Map settings
-    // Show 1000x1000 area around player
-    const drawRadius = 500;
+    // Map settings - use mapZoom for radius
+    const drawRadius = Math.round(mapZoom);
     const centerX = mapCanvas.width / 2;
     const centerY = mapCanvas.height / 2;
 
