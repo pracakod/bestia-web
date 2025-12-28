@@ -1562,6 +1562,16 @@ function toggleMap() {
     }
 }
 
+// Mobile button to open map
+document.getElementById('btn-map')?.addEventListener('click', () => toggleMap());
+document.getElementById('btn-map')?.addEventListener('touchstart', (e) => { e.preventDefault(); toggleMap(); });
+
+// Close button on map overlay
+document.getElementById('btn-close-map')?.addEventListener('click', () => {
+    isMapOpen = false;
+    mapOverlay.style.display = 'none';
+});
+
 function drawMap() {
     if (!player) return;
 

@@ -310,11 +310,10 @@
     </div>
 
     <!-- Mobile Action Buttons -->
-    <div id="mobile-buttons">
-        <button class="action-btn" id="btn-build">🔨</button>
-        <button class="action-btn" id="btn-attack">⛏️</button>
-        <button class="action-btn" id="btn-torch">🔥</button>
-        <button class="action-btn" id="btn-material" style="background: #654321;">🪵</button>
+    <button class="action-btn" id="btn-build">🔨</button>
+    <button class="action-btn" id="btn-attack">⛏️</button>
+    <button class="action-btn" id="btn-torch">🔥</button>
+    <button class="action-btn" id="btn-map" style="background: #2a4a6a;">🗺️</button>
     </div>
 
 
@@ -349,13 +348,27 @@
         flex-direction: column;
         color: white;
     ">
+        <button id="btn-close-map" style="
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 24px;
+            background: #c00;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            cursor: pointer;
+            z-index: 2001;
+        ">✕</button>
         <h2>Mapa Świata</h2>
         <canvas id="map-canvas" width="1000" height="1000"
             style="width: 80vmin; height: 80vmin; border: 2px solid #555; background: black; box-shadow: 0 0 20px black; image-rendering: pixelated;"></canvas>
-        <p>Naciśnij <b>M</b> aby zamknąć</p>
+        <p>Naciśnij <b>M</b> lub przycisk aby zamknąć</p>
     </div>
 
-    <script type="module" src="./src/main.js?v=33"></script>
+    <script type="module" src="./src/main.js?v=34"></script>
 </body>
 
 </html>
