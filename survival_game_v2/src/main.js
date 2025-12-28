@@ -68,7 +68,8 @@ const GRASS_RADIUS = 2000;  // Middle grass/forest biome
 
 // === MULTIPLAYER STATE ===
 let multiplayer = null;
-const otherPlayers = new Map(); // id -> { mesh, shadow }
+const otherPlayers = new Map(); // id -> { mesh, shadow, label }
+let playerLabel = null;
 
 // === TEXTURES ===
 const textureLoader = new THREE.TextureLoader();
@@ -397,6 +398,26 @@ function startGame(avatarUrl) {
     }
 }
 
+function createNameLabel(text) {
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    canvas.width = 256;
+    canvas.height = 64;
+    context.font = 'Bold 40px Arial';
+    context.fillStyle = 'white';
+    context.textAlign = 'center';
+    context.strokeStyle = 'black';
+    context.lineWidth = 4;
+    context.strokeText(text, 128, 45);
+    context.fillText(text, 128, 45);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
+    const sprite = new THREE.Sprite(spriteMat);
+    sprite.scale.set(2, 0.5, 1);
+    return sprite;
+}
+
 function setupPlayer(texture, isCustomStitched, idleTexture, slashTexture) {
     isSpriteSheet = true;
 
@@ -422,6 +443,9 @@ function setupPlayer(texture, isCustomStitched, idleTexture, slashTexture) {
         playerShadow.rotation.x = -Math.PI / 2;
         playerShadow.position.set(player.position.x, 0.02, player.position.z + 0.05);
         scene.add(playerShadow);
+
+        playerLabel = createNameLabel('Gracz');
+        scene.add(playerLabel);
 
         // === STARTING ITEMS ===
         const placeObjectOnGrid = (gx, gz, texture, type) => {
@@ -487,10 +511,11 @@ function setupPlayer(texture, isCustomStitched, idleTexture, slashTexture) {
                 if (p) {
                     p.mesh.position.set(data.x, 0.6, data.z);
                     p.shadow.position.set(data.x, 0.02, data.z + 0.05);
+                    p.label.position.set(data.x, 1.4, data.z);
                 }
             },
             // Join
-            (id) => {
+            (id, number) => {
                 const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, alphaTest: 0.5, color: 0x8888ff });
                 const m = new THREE.Sprite(mat);
                 m.scale.set(1.5 * 0.9, 1.5 * 0.9, 1);
@@ -503,8 +528,11 @@ function setupPlayer(texture, isCustomStitched, idleTexture, slashTexture) {
                 s.rotation.x = -Math.PI / 2;
                 scene.add(s);
 
-                otherPlayers.set(id, { mesh: m, shadow: s });
-                console.log('Player joined:', id);
+                const label = createNameLabel(`Gracz ${number}`);
+                scene.add(label);
+
+                otherPlayers.set(id, { mesh: m, shadow: s, label: label });
+                console.log('Player joined:', id, 'as Gracz', number);
             },
             // Leave
             (id) => {
@@ -512,6 +540,7 @@ function setupPlayer(texture, isCustomStitched, idleTexture, slashTexture) {
                 if (p) {
                     scene.remove(p.mesh);
                     scene.remove(p.shadow);
+                    scene.remove(p.label);
                     otherPlayers.delete(id);
                 }
                 console.log('Player left:', id);
@@ -520,6 +549,14 @@ function setupPlayer(texture, isCustomStitched, idleTexture, slashTexture) {
             () => {
                 alert('Serwer pełny! (Max 2 graczy)');
                 window.location.reload();
+            },
+            // Local Number Update
+            (number) => {
+                if (playerLabel) {
+                    scene.remove(playerLabel);
+                    playerLabel = createNameLabel(`Gracz ${number}`);
+                    scene.add(playerLabel);
+                }
             }
         );
     } else {
@@ -1052,6 +1089,10 @@ function animate() {
         }
         if (playerLight) {
             playerLight.position.set(player.position.x, 1.5, player.position.z);
+        }
+
+        if (playerLabel) {
+            playerLabel.position.set(player.position.x, 1.4, player.position.z);
         }
 
         // Shadow sync (Texture)

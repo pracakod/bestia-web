@@ -6,7 +6,7 @@ let channel = null;
 let myPlayerId = 'guest_' + Math.random().toString(36).substr(2, 9);
 let otherPlayersData = new Map();
 
-export function initMultiplayer(onPlayerUpdate, onPlayerJoin, onPlayerLeave, onServerFull) {
+export function initMultiplayer(onPlayerUpdate, onPlayerJoin, onPlayerLeave, onServerFull, onLocalNumber) {
     if (typeof supabasejs === 'undefined') {
         console.error('Supabase SDK not loaded');
         return;
@@ -25,22 +25,27 @@ export function initMultiplayer(onPlayerUpdate, onPlayerJoin, onPlayerLeave, onS
     channel
         .on('presence', { event: 'sync' }, () => {
             const newState = channel.presenceState();
-            const players = Object.keys(newState);
+            const players = Object.keys(newState).sort(); // Sorted list of IDs
 
             // Check Server Limit (2 players)
             if (players.length > 2) {
-                const myIndex = players.sort().indexOf(myPlayerId);
+                const myIndex = players.indexOf(myPlayerId);
                 if (myIndex >= 2) {
                     onServerFull();
                     return;
                 }
             }
 
+            // Determine numbers
+            const myNumber = players.indexOf(myPlayerId) + 1;
+            if (onLocalNumber) onLocalNumber(myNumber);
+
             // Detect joins/leaves
-            // (Simple sync for now)
             players.forEach(id => {
                 if (id !== myPlayerId && !otherPlayersData.has(id)) {
-                    onPlayerJoin(id);
+                    const number = players.indexOf(id) + 1;
+                    onPlayerJoin(id, number);
+                    otherPlayersData.set(id, { number });
                 }
             });
 
