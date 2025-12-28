@@ -58,7 +58,7 @@ scene.add(dirLight);
 // === CONSTANTS ===
 const TILE_SIZE = 0.7;
 const MAP_SIZE = 5000; // MASSIVE MAP
-const VIEW_RADIUS = 22; // Reduced for performance
+const VIEW_RADIUS = 15; // Reduced for performance (was 22)
 const CENTER = MAP_SIZE / 2;
 const GAME_VERSION = "v1.4.0";
 const LAST_UPDATE = "Periodic World Sync (5s)";
@@ -696,6 +696,11 @@ function setupPlayer(texture, isCustomStitched, idleTexture, slashTexture) {
                     targetX: null, // null = not yet received first position
                     targetZ: null
                 });
+
+                // Set initial texture to idle
+                m.material.map = idleT;
+                m.material.needsUpdate = true;
+
                 console.log('Player joined:', id, 'as Gracz', number);
             },
             // Leave
