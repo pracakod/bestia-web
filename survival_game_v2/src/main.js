@@ -60,8 +60,8 @@ const TILE_SIZE = 0.7;
 const MAP_SIZE = 5000; // MASSIVE MAP
 const VIEW_RADIUS = 22; // Reduced for performance
 const CENTER = MAP_SIZE / 2;
-const GAME_VERSION = "v1.1.0";
-const LAST_UPDATE = "Optimized Torch Lights (Pool)";
+const GAME_VERSION = "v1.2.0";
+const LAST_UPDATE = "Fixed Player Spawn Animation";
 
 // Biome thresholds (distance from center)
 const STONE_RADIUS = 800;  // Inner stone/cave biome
@@ -642,6 +642,13 @@ function setupPlayer(texture, isCustomStitched, idleTexture, slashTexture) {
             (data) => {
                 const p = otherPlayers.get(data.id);
                 if (p) {
+                    // First position update - set directly without interpolation
+                    if (p.targetX === null || p.targetZ === null) {
+                        p.mesh.position.set(data.x, 0.6, data.z);
+                        p.shadow.position.set(data.x, 0.02, data.z + 0.05);
+                        p.label.position.set(data.x, 1.8, data.z);
+                    }
+
                     // Store target position for smooth interpolation
                     p.targetX = data.x;
                     p.targetZ = data.z;
@@ -686,8 +693,8 @@ function setupPlayer(texture, isCustomStitched, idleTexture, slashTexture) {
                     isMoving: false,
                     isAttacking: false,
                     facingRight: true,
-                    targetX: 0,
-                    targetZ: 0
+                    targetX: null, // null = not yet received first position
+                    targetZ: null
                 });
                 console.log('Player joined:', id, 'as Gracz', number);
             },
@@ -1348,16 +1355,18 @@ function animate() {
         // ANIMATION FOR OTHER PLAYERS
         for (const p of otherPlayers.values()) {
             // === SMOOTH POSITION INTERPOLATION ===
-            // Interpolate toward target position for smooth movement
-            const lerpFactor = 0.15; // Smoothness (lower = smoother but delayed)
-            const currentX = p.mesh.position.x;
-            const currentZ = p.mesh.position.z;
-            const newX = currentX + (p.targetX - currentX) * lerpFactor;
-            const newZ = currentZ + (p.targetZ - currentZ) * lerpFactor;
+            // Skip interpolation if target position not yet received
+            if (p.targetX !== null && p.targetZ !== null) {
+                const lerpFactor = 0.15; // Smoothness (lower = smoother but delayed)
+                const currentX = p.mesh.position.x;
+                const currentZ = p.mesh.position.z;
+                const newX = currentX + (p.targetX - currentX) * lerpFactor;
+                const newZ = currentZ + (p.targetZ - currentZ) * lerpFactor;
 
-            p.mesh.position.set(newX, 0.6, newZ);
-            p.shadow.position.set(newX, 0.02, newZ + 0.05);
-            p.label.position.set(newX, 1.8, newZ);
+                p.mesh.position.set(newX, 0.6, newZ);
+                p.shadow.position.set(newX, 0.02, newZ + 0.05);
+                p.label.position.set(newX, 1.8, newZ);
+            }
 
             if (isSpriteSheet && player.userData.isStitched) {
                 let currentTex = p.idleTex;
