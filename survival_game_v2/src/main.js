@@ -1255,7 +1255,7 @@ function animate() {
             const px = Math.round(player.position.x / TILE_SIZE);
             const pz = Math.round(player.position.z / TILE_SIZE);
             const dist = Math.round(Math.sqrt((px - CENTER) ** 2 + (pz - CENTER) ** 2));
-            coordsDiv.innerHTML = `Poz: ${px}, ${pz}<br>Dystans: ${dist}`;
+            coordsDiv.innerHTML = `Poz: ${px}, ${pz}<br>Dystans: ${dist}<hr style="border:0;border-top:1px solid rgba(255,255,255,0.3);margin:4px 0;"><small style="opacity:0.7">${GAME_VERSION} - ${LAST_UPDATE}</small>`;
         }
 
         renderer.render(scene, camera);
