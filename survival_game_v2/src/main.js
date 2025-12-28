@@ -950,13 +950,6 @@ function animate() {
     // Dynamic map loading
     updateChunks(player.position.x, player.position.z);
 
-    // MULTIPLAYER POS SYNC (Throttle 100ms)
-    if (multiplayer && Date.now() - lastNetUpdate > 100) {
-        const facingRight = lastFacing.x >= 0;
-        multiplayer.sendPosition(player.position.x, player.position.z, input.x, input.y, isMoving, isAttacking, facingRight);
-        lastNetUpdate = Date.now();
-    }
-
     if (!player) return;
 
     // INPUT
@@ -977,6 +970,13 @@ function animate() {
     }
 
     let isMoving = (Math.abs(dx) > 0 || Math.abs(dy) > 0);
+
+    // MULTIPLAYER POS SYNC (Throttle 100ms)
+    if (multiplayer && Date.now() - lastNetUpdate > 100) {
+        const facingRight = lastFacing.x >= 0;
+        multiplayer.sendPosition(player.position.x, player.position.z, input.x, input.y, isMoving, isAttacking, facingRight);
+        lastNetUpdate = Date.now();
+    }
 
     if (isMoving) {
         if (Math.abs(dx) > Math.abs(dy)) {
