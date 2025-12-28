@@ -882,6 +882,16 @@ function destroyBlock(tx, tz, isRemote = false) {
     if (objData) {
         if (objData.type === 'built' || objData.type === 'torch') {
             scene.remove(objData.mesh);
+
+            // If destroying torch, remove from torchPositions array
+            if (objData.type === 'torch') {
+                const idx = torchPositions.findIndex(t => Math.abs(t.x - x) < 0.1 && Math.abs(t.z - z) < 0.1);
+                if (idx !== -1) {
+                    torchPositions.splice(idx, 1);
+                    console.log('Torch removed from positions array');
+                }
+            }
+
             // Create floor replacement for built wall
             const floor = new THREE.Mesh(voxelGeo, stoneMat.clone());
             floor.position.set(x, -0.35, z);
