@@ -1,4 +1,5 @@
 import * as THREE from 'https://unpkg.com/three@0.157.0/build/three.module.js';
+import { initMultiplayer } from './multiplayer.js';
 
 // === SCENE SETUP ===
 const scene = new THREE.Scene();
@@ -64,6 +65,10 @@ const CENTER = MAP_SIZE / 2;
 const STONE_RADIUS = 800;  // Inner stone/cave biome
 const GRASS_RADIUS = 2000;  // Middle grass/forest biome
 // Beyond GRASS_RADIUS = sand/water biome
+
+// === MULTIPLAYER STATE ===
+let multiplayer = null;
+const otherPlayers = new Map(); // id -> { mesh, shadow }
 
 // === TEXTURES ===
 const textureLoader = new THREE.TextureLoader();
@@ -473,6 +478,50 @@ function setupPlayer(texture, isCustomStitched, idleTexture, slashTexture) {
 
         placeObjectOnGrid(startGx + 2, startGz, workbenchTex, 'workbench');
         placeObjectOnGrid(startGx + 3, startGz, chestTex, 'chest');
+
+        // === INITIALIZE MULTIPLAYER ===
+        multiplayer = initMultiplayer(
+            // Position update
+            (data) => {
+                const p = otherPlayers.get(data.id);
+                if (p) {
+                    p.mesh.position.set(data.x, 0.6, data.z);
+                    p.shadow.position.set(data.x, 0.02, data.z + 0.05);
+                }
+            },
+            // Join
+            (id) => {
+                const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, alphaTest: 0.5, color: 0x8888ff });
+                const m = new THREE.Sprite(mat);
+                m.scale.set(1.5 * 0.9, 1.5 * 0.9, 1);
+                m.position.set(0, 0.6, 0);
+                scene.add(m);
+
+                const sGeo = new THREE.PlaneGeometry(0.8, 0.4);
+                const sMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
+                const s = new THREE.Mesh(sGeo, sMat);
+                s.rotation.x = -Math.PI / 2;
+                scene.add(s);
+
+                otherPlayers.set(id, { mesh: m, shadow: s });
+                console.log('Player joined:', id);
+            },
+            // Leave
+            (id) => {
+                const p = otherPlayers.get(id);
+                if (p) {
+                    scene.remove(p.mesh);
+                    scene.remove(p.shadow);
+                    otherPlayers.delete(id);
+                }
+                console.log('Player left:', id);
+            },
+            // Server Full
+            () => {
+                alert('Serwer pełny! (Max 2 graczy)');
+                window.location.reload();
+            }
+        );
     } else {
         player.material = mat;
     }
@@ -795,6 +844,7 @@ const clock = new THREE.Clock();
 const BASE_SPEED = 6.0; // Faster movement
 let lastFacing = { x: 0, y: 1 };
 let isGameRunning = false;
+let lastNetUpdate = 0; // For multiplayer throttling
 
 function animate() {
     isGameRunning = true;
@@ -804,6 +854,12 @@ function animate() {
 
     // Dynamic map loading
     updateChunks(player.position.x, player.position.z);
+
+    // MULTIPLAYER POS SYNC (Throttle 100ms)
+    if (multiplayer && Date.now() - lastNetUpdate > 100) {
+        multiplayer.sendPosition(player.position.x, player.position.z, input.x, input.y);
+        lastNetUpdate = Date.now();
+    }
 
     if (!player) return;
 
