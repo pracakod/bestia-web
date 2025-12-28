@@ -60,8 +60,8 @@ const TILE_SIZE = 0.7;
 const MAP_SIZE = 5000; // MASSIVE MAP
 const VIEW_RADIUS = 22; // Reduced for performance
 const CENTER = MAP_SIZE / 2;
-const GAME_VERSION = "v1.2.0";
-const LAST_UPDATE = "Fixed Player Spawn Animation";
+const GAME_VERSION = "v1.3.0";
+const LAST_UPDATE = "Fixed Remote Action Sync";
 
 // Biome thresholds (distance from center)
 const STONE_RADIUS = 800;  // Inner stone/cave biome
@@ -825,6 +825,13 @@ function destroyBlock(tx, tz, isRemote = false) {
     const dist = Math.sqrt((x - player.position.x) ** 2 + (z - player.position.z) ** 2);
     const objData = objectsMap.get(key);
 
+    // If chunk not loaded (remote action), cache for later application
+    if (!objData && isRemote) {
+        addMutationToCache('destroy', x, z);
+        console.log('Remote destroy cached for later:', x, z);
+        return;
+    }
+
     // Check if any player is standing on this tile
     if (!isRemote && objData && (objData.type === 'floor' || objData.type === 'wood')) {
         // Check local player
@@ -937,6 +944,18 @@ function placeBlock(tx, tz, isRemote = false) {
     if (!isRemote && !isHole && dist < 0.5) return;
 
     if (!objectsMap.has(key)) {
+        // For remote actions on chunks that might not exist yet, check if tile is loaded
+        const gx = Math.round(x / TILE_SIZE);
+        const gz = Math.round(z / TILE_SIZE);
+        const tileKey = getTileKey(gx, gz);
+
+        if (isRemote && !loadedTiles.has(tileKey)) {
+            // Chunk not loaded - cache for later application
+            addMutationToCache('build', x, z);
+            console.log('Remote build cached for later:', x, z);
+            return;
+        }
+
         // HOLE - Rebuild floor
         const floorBlock = new THREE.Mesh(
             new THREE.BoxGeometry(0.7, 0.7, 0.7),
@@ -988,14 +1007,25 @@ function placeTorch(tx, tz, isRemote = false) {
         }
     }
 
+    // If chunk not loaded (remote action), cache for later application
     if (!objectsMap.has(key)) {
-        console.log("Nie można na dziurze!");
+        if (isRemote) {
+            addMutationToCache('torch', x, z);
+            console.log('Remote torch cached for later:', x, z);
+        } else {
+            console.log("Nie można na dziurze!");
+        }
         return;
     }
 
     const objData = objectsMap.get(key);
     if (objData.type !== 'floor') {
-        if (!isRemote) console.log("Tylko na podłodze!");
+        if (isRemote) {
+            addMutationToCache('torch', x, z);
+            console.log('Remote torch cached (not floor):', x, z);
+        } else {
+            console.log("Tylko na podłodze!");
+        }
         return;
     }
 
