@@ -980,6 +980,7 @@ const BASE_SPEED = 6.0; // Faster movement
 let lastFacing = { x: 0, y: 1 };
 let isGameRunning = false;
 let lastNetUpdate = 0; // For multiplayer throttling
+let wasMovingLastFrame = false; // Track previous movement state for sync
 
 function animate() {
     isGameRunning = true;
@@ -1012,12 +1013,14 @@ function animate() {
     let isMoving = (Math.abs(dx) > 0 || Math.abs(dy) > 0);
 
     // MULTIPLAYER POS SYNC (Throttle 200ms - optimized for Supabase limits)
-    // Only send when moving or attacking to save bandwidth
-    if (multiplayer && Date.now() - lastNetUpdate > 200 && (isMoving || isAttacking)) {
+    // Send when moving, attacking, OR when just stopped moving (to sync idle state)
+    const shouldSendUpdate = isMoving || isAttacking || (wasMovingLastFrame && !isMoving);
+    if (multiplayer && Date.now() - lastNetUpdate > 200 && shouldSendUpdate) {
         const facingRight = lastFacing.x >= 0;
         multiplayer.sendPosition(player.position.x, player.position.z, input.x, input.y, isMoving, isAttacking, facingRight);
         lastNetUpdate = Date.now();
     }
+    wasMovingLastFrame = isMoving;
 
     if (isMoving) {
         if (Math.abs(dx) > Math.abs(dy)) {
