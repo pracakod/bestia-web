@@ -1024,8 +1024,20 @@ function placeBlock(tx, tz, isRemote = false) {
 // === PLACE TORCH ===
 const torchGeo = new THREE.BoxGeometry(0.1, 0.4, 0.1);
 const torchMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
+let lastTorchTime = 0; // Cooldown tracker
+const TORCH_COOLDOWN = 1500; // 1.5 seconds
 
 function placeTorch(tx, tz, isRemote = false) {
+    // Cooldown check (only for local player)
+    if (!isRemote) {
+        const now = Date.now();
+        if (now - lastTorchTime < TORCH_COOLDOWN) {
+            console.log("Poczekaj przed postawieniem kolejnej pochodni!");
+            return;
+        }
+        lastTorchTime = now;
+    }
+
     const x = tx !== undefined ? tx : selector.position.x;
     const z = tz !== undefined ? tz : selector.position.z;
     const key = getKey(x, z);
