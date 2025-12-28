@@ -812,31 +812,15 @@ scene.add(selector);
 let isAttacking = false;
 let attackStartTime = 0;
 
-// === DROP SYSTEM ===
+// === DROP SYSTEM (DISABLED - for sync simplicity) ===
+// Drops are disabled to avoid sync issues between players
+// Resources/inventory system can be added later if needed
 const drops = [];
-const dropTexture = textureLoader.load(basePath + 'drop_stone.png');
-dropTexture.magFilter = THREE.NearestFilter;
-
-const dropWoodTexture = textureLoader.load(basePath + 'wood1.jpg');
-dropWoodTexture.magFilter = THREE.NearestFilter;
 
 function spawnDrop(x, z, type = 'stone') {
-    const tex = type === 'wood' ? dropWoodTexture : dropTexture;
-
-    const dropGeo = new THREE.PlaneGeometry(0.2, 0.2);
-    const dropMat = new THREE.MeshBasicMaterial({
-        map: tex,
-        transparent: true,
-        alphaTest: 0.5,
-        side: THREE.DoubleSide
-    });
-
-    const drop = new THREE.Mesh(dropGeo, dropMat);
-    drop.position.set(x + (Math.random() - 0.5) * 0.3, 0.2, z + (Math.random() - 0.5) * 0.3);
-    drop.rotation.x = -Math.PI / 2;
-
-    scene.add(drop);
-    drops.push({ mesh: drop, spawnTime: Date.now(), type: type });
+    // Disabled - no drops for simpler sync
+    // Add to inventory directly here in the future
+    console.log(`[Drop disabled] ${type} at ${x.toFixed(1)}, ${z.toFixed(1)}`);
 }
 
 function triggerAttack() {
