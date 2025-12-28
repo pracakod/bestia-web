@@ -60,8 +60,8 @@ const TILE_SIZE = 0.7;
 const MAP_SIZE = 5000; // MASSIVE MAP
 const VIEW_RADIUS = 22; // Reduced for performance
 const CENTER = MAP_SIZE / 2;
-const GAME_VERSION = "v0.6.1";
-const LAST_UPDATE = "Multiplayer & Nicknames";
+const GAME_VERSION = "v0.7.0";
+const LAST_UPDATE = "Sync Actions & Animations";
 
 // Biome thresholds (distance from center)
 const STONE_RADIUS = 800;  // Inner stone/cave biome
@@ -407,12 +407,12 @@ function createNameLabel(text) {
     canvas.width = 256;
     canvas.height = 64;
     context.clearRect(0, 0, 256, 64);
-    context.font = 'Bold 40px Arial';
+    context.font = 'Bold 32px Arial';
     context.fillStyle = 'white';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
     context.strokeStyle = 'black';
-    context.lineWidth = 6;
+    context.lineWidth = 4;
     context.strokeText(text, 128, 32);
     context.fillText(text, 128, 32);
 
@@ -424,7 +424,7 @@ function createNameLabel(text) {
         sizeAttenuation: true
     });
     const sprite = new THREE.Sprite(spriteMat);
-    sprite.scale.set(3, 0.75, 1);
+    sprite.scale.set(2, 0.5, 1);
     sprite.renderOrder = 1000;
     return sprite;
 }
@@ -523,12 +523,24 @@ function setupPlayer(texture, isCustomStitched, idleTexture, slashTexture) {
                 if (p) {
                     p.mesh.position.set(data.x, 0.6, data.z);
                     p.shadow.position.set(data.x, 0.02, data.z + 0.05);
-                    p.label.position.set(data.x, 2.2, data.z);
+                    p.label.position.set(data.x, 1.8, data.z); // Slightly lower label
+
+                    // Update Animation States
+                    p.isMoving = data.moving;
+                    p.isAttacking = data.attacking;
+                    p.facingRight = data.facingRight;
                 }
             },
             // Join
             (id, number) => {
-                const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, alphaTest: 0.5, color: 0x8888ff });
+                const runT = texture.clone();
+                const idleT = idleTexture.clone();
+                const slashT = slashTexture.clone();
+                runT.needsUpdate = true;
+                idleT.needsUpdate = true;
+                slashT.needsUpdate = true;
+
+                const mat = new THREE.SpriteMaterial({ map: idleT, transparent: true, alphaTest: 0.5, color: 0x8888ff });
                 const m = new THREE.Sprite(mat);
                 m.scale.set(1.5 * 0.9, 1.5 * 0.9, 1);
                 m.position.set(0, 0.6, 0);
@@ -543,7 +555,17 @@ function setupPlayer(texture, isCustomStitched, idleTexture, slashTexture) {
                 const label = createNameLabel(`Gracz ${number}`);
                 scene.add(label);
 
-                otherPlayers.set(id, { mesh: m, shadow: s, label: label });
+                otherPlayers.set(id, {
+                    mesh: m,
+                    shadow: s,
+                    label: label,
+                    runTex: runT,
+                    idleTex: idleT,
+                    slashTex: slashT,
+                    isMoving: false,
+                    isAttacking: false,
+                    facingRight: true
+                });
                 console.log('Player joined:', id, 'as Gracz', number);
             },
             // Leave
@@ -568,6 +590,17 @@ function setupPlayer(texture, isCustomStitched, idleTexture, slashTexture) {
                     scene.remove(playerLabel);
                     playerLabel = createNameLabel(`Gracz ${number}`);
                     scene.add(playerLabel);
+                }
+            },
+            // Remote Action (build, destroy, torch)
+            (action) => {
+                console.log('Remote action:', action);
+                if (action.type === 'destroy') {
+                    destroyBlock(action.x, action.z, true);
+                } else if (action.type === 'build') {
+                    placeBlock(action.x, action.z, true);
+                } else if (action.type === 'torch') {
+                    placeTorch(action.x, action.z, true);
                 }
             }
         );
@@ -630,20 +663,25 @@ function triggerAttack() {
 
 // === DESTROY BLOCK ===
 // === DESTROY BLOCK ===
-function destroyBlock() {
+function destroyBlock(tx, tz, isRemote = false) {
     triggerAttack();
-    const x = selector.position.x;
-    const z = selector.position.z;
+    const x = tx !== undefined ? tx : selector.position.x;
+    const z = tz !== undefined ? tz : selector.position.z;
     const key = getKey(x, z);
 
-    // Prevent destroying floor too close to player
+    if (!isRemote && multiplayer) {
+        multiplayer.sendAction('destroy', x, z);
+    }
+
+    // Prevent destroying floor too close to player (only for local)
     const dist = Math.sqrt((x - player.position.x) ** 2 + (z - player.position.z) ** 2);
     const objData = objectsMap.get(key);
 
-    if (objData && (objData.type === 'floor' || objData.type === 'wood') && dist < 0.6) {
+    if (!isRemote && objData && (objData.type === 'floor' || objData.type === 'wood') && dist < 0.6) {
         console.log("Za blisko!");
         return;
     }
+    // ... (rest of logic remains same, just uses x, z)
 
     if (objData) {
         if (objData.type === 'built' || objData.type === 'torch') {
@@ -721,16 +759,20 @@ function destroyBlock() {
 }
 
 // === PLACE BLOCK ===
-function placeBlock() {
-    const x = selector.position.x;
-    const z = selector.position.z;
+function placeBlock(tx, tz, isRemote = false) {
+    const x = tx !== undefined ? tx : selector.position.x;
+    const z = tz !== undefined ? tz : selector.position.z;
     const key = getKey(x, z);
+
+    if (!isRemote && multiplayer) {
+        multiplayer.sendAction('build', x, z);
+    }
 
     const dist = Math.sqrt((x - player.position.x) ** 2 + (z - player.position.z) ** 2);
     const isHole = !objectsMap.has(key);
 
     // Allow floor rebuild at any distance (escape mechanism)
-    if (!isHole && dist < 0.5) return;
+    if (!isRemote && !isHole && dist < 0.5) return;
 
     if (!objectsMap.has(key)) {
         // HOLE - Rebuild floor
@@ -772,10 +814,14 @@ function placeBlock() {
 const torchGeo = new THREE.BoxGeometry(0.1, 0.4, 0.1);
 const torchMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
 
-function placeTorch() {
-    const x = selector.position.x;
-    const z = selector.position.z;
+function placeTorch(tx, tz, isRemote = false) {
+    const x = tx !== undefined ? tx : selector.position.x;
+    const z = tz !== undefined ? tz : selector.position.z;
     const key = getKey(x, z);
+
+    if (!isRemote && multiplayer) {
+        multiplayer.sendAction('torch', x, z);
+    }
 
     if (!objectsMap.has(key)) {
         console.log("Nie można na dziurze!");
@@ -784,7 +830,7 @@ function placeTorch() {
 
     const objData = objectsMap.get(key);
     if (objData.type !== 'floor') {
-        console.log("Tylko na podłodze!");
+        if (!isRemote) console.log("Tylko na podłodze!");
         return;
     }
 
@@ -906,7 +952,8 @@ function animate() {
 
     // MULTIPLAYER POS SYNC (Throttle 100ms)
     if (multiplayer && Date.now() - lastNetUpdate > 100) {
-        multiplayer.sendPosition(player.position.x, player.position.z, input.x, input.y);
+        const facingRight = lastFacing.x >= 0;
+        multiplayer.sendPosition(player.position.x, player.position.z, input.x, input.y, isMoving, isAttacking, facingRight);
         lastNetUpdate = Date.now();
     }
 
@@ -1024,10 +1071,9 @@ function animate() {
     const coordsEl = document.getElementById('coords');
     if (coordsEl) {
         coordsEl.innerHTML = `
-            <b>${GAME_VERSION}</b><br>
-            <small>${LAST_UPDATE}</small><hr style="border:0;border-top:1px solid rgba(255,255,255,0.2);margin:4px 0;">
             Gracz: ${pIx} / ${pIz}<br>
-            Cel: ${sIx} / ${sIz}
+            Cel: ${sIx} / ${sIz}<hr style="border:0;border-top:1px solid rgba(255,255,255,0.2);margin:4px 0;">
+            <small style="opacity: 0.7">${GAME_VERSION} - ${LAST_UPDATE}</small>
         `;
     }
 
@@ -1098,6 +1144,39 @@ function animate() {
                 player.material.map.repeat.x = 1 / count;
             }
             player.material.map.offset.y = 0;
+        }
+
+        // ANIMATION FOR OTHER PLAYERS
+        for (const p of otherPlayers.values()) {
+            if (isSpriteSheet && player.userData.isStitched) {
+                let currentTex = p.idleTex;
+                let count = 12;
+                let speed = 100;
+
+                if (p.isAttacking) {
+                    currentTex = p.slashTex;
+                    count = 8;
+                    speed = 60;
+                } else if (p.isMoving) {
+                    currentTex = p.runTex;
+                    count = 10;
+                    speed = 80;
+                }
+
+                if (p.mesh.material.map !== currentTex) {
+                    p.mesh.material.map = currentTex;
+                }
+
+                const frameIndex = Math.floor(Date.now() / speed) % count;
+                if (p.facingRight) {
+                    p.mesh.material.map.offset.x = (frameIndex + 1) / count;
+                    p.mesh.material.map.repeat.x = -1 / count;
+                } else {
+                    p.mesh.material.map.offset.x = frameIndex / count;
+                    p.mesh.material.map.repeat.x = 1 / count;
+                }
+                p.mesh.material.map.offset.y = 0;
+            }
         }
 
         // Update Shadow & Light Position

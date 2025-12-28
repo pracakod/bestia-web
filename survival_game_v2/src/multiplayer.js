@@ -6,7 +6,7 @@ let channel = null;
 let myPlayerId = 'guest_' + Math.random().toString(36).substr(2, 9);
 let otherPlayersData = new Map();
 
-export function initMultiplayer(onPlayerUpdate, onPlayerJoin, onPlayerLeave, onServerFull, onLocalNumber) {
+export function initMultiplayer(onPlayerUpdate, onPlayerJoin, onPlayerLeave, onServerFull, onLocalNumber, onAction) {
     if (typeof supabase === 'undefined') {
         console.error('Supabase SDK not loaded');
         return;
@@ -61,6 +61,11 @@ export function initMultiplayer(onPlayerUpdate, onPlayerJoin, onPlayerLeave, onS
                 onPlayerUpdate(payload);
             }
         })
+        .on('broadcast', { event: 'action' }, ({ payload }) => {
+            if (payload.id !== myPlayerId && onAction) {
+                onAction(payload);
+            }
+        })
         .subscribe(async (status) => {
             if (status === 'SUBSCRIBED') {
                 await channel.track({ online_at: new Date().toISOString() });
@@ -68,12 +73,21 @@ export function initMultiplayer(onPlayerUpdate, onPlayerJoin, onPlayerLeave, onS
         });
 
     return {
-        sendPosition: (x, z, dx, dy) => {
+        sendPosition: (x, z, dx, dy, moving, attacking, facingRight) => {
             if (channel) {
                 channel.send({
                     type: 'broadcast',
                     event: 'move',
-                    payload: { id: myPlayerId, x, z, dx, dy },
+                    payload: { id: myPlayerId, x, z, dx, dy, moving, attacking, facingRight },
+                });
+            }
+        },
+        sendAction: (type, x, z) => {
+            if (channel) {
+                channel.send({
+                    type: 'broadcast',
+                    event: 'action',
+                    payload: { id: myPlayerId, type, x, z },
                 });
             }
         },
