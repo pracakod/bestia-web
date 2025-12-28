@@ -399,22 +399,31 @@ function startGame(avatarUrl) {
 }
 
 function createNameLabel(text) {
+    console.log('Creating name label:', text);
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     canvas.width = 256;
     canvas.height = 64;
+    context.clearRect(0, 0, 256, 64);
     context.font = 'Bold 40px Arial';
     context.fillStyle = 'white';
     context.textAlign = 'center';
+    context.textBaseline = 'middle';
     context.strokeStyle = 'black';
-    context.lineWidth = 4;
-    context.strokeText(text, 128, 45);
-    context.fillText(text, 128, 45);
+    context.lineWidth = 6;
+    context.strokeText(text, 128, 32);
+    context.fillText(text, 128, 32);
 
     const texture = new THREE.CanvasTexture(canvas);
-    const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
+    const spriteMat = new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        depthTest: false,
+        sizeAttenuation: true
+    });
     const sprite = new THREE.Sprite(spriteMat);
-    sprite.scale.set(2, 0.5, 1);
+    sprite.scale.set(3, 0.75, 1);
+    sprite.renderOrder = 1000;
     return sprite;
 }
 
@@ -511,7 +520,7 @@ function setupPlayer(texture, isCustomStitched, idleTexture, slashTexture) {
                 if (p) {
                     p.mesh.position.set(data.x, 0.6, data.z);
                     p.shadow.position.set(data.x, 0.02, data.z + 0.05);
-                    p.label.position.set(data.x, 1.4, data.z);
+                    p.label.position.set(data.x, 2.2, data.z);
                 }
             },
             // Join
@@ -1092,7 +1101,7 @@ function animate() {
         }
 
         if (playerLabel) {
-            playerLabel.position.set(player.position.x, 1.4, player.position.z);
+            playerLabel.position.set(player.position.x, 2.2, player.position.z);
         }
 
         // Shadow sync (Texture)
