@@ -7,7 +7,7 @@ scene.background = new THREE.Color(0x050505);
 
 // Orthographic Camera for 2.5D view
 const aspect = window.innerWidth / window.innerHeight;
-const s = 5;
+const s = 4; // Camera zoom (was 5, smaller = closer)
 const camera = new THREE.OrthographicCamera(-s * aspect, s * aspect, s, -s, 0.1, 1000);
 camera.position.set(0, 12, 10);
 camera.lookAt(0, 0, 0);
@@ -25,7 +25,7 @@ function handleResize() {
     const h = window.innerHeight;
     renderer.setSize(w, h);
     const aspect = w / h;
-    const s = 5;
+    const s = 4; // Must match above
     camera.left = -s * aspect;
     camera.right = s * aspect;
     camera.top = s;
@@ -657,6 +657,7 @@ function setupPlayer(texture, isCustomStitched, idleTexture, slashTexture) {
                     p.isMoving = data.moving;
                     p.isAttacking = data.attacking;
                     p.facingRight = data.facingRight;
+                    p.lastUpdateTime = Date.now(); // Track when we received update
                 }
             },
             // Join
@@ -694,7 +695,8 @@ function setupPlayer(texture, isCustomStitched, idleTexture, slashTexture) {
                     isAttacking: false,
                     facingRight: true,
                     targetX: null, // null = not yet received first position
-                    targetZ: null
+                    targetZ: null,
+                    lastUpdateTime: Date.now() // Track last update for idle detection
                 });
 
                 // Set initial texture to idle
@@ -1456,6 +1458,12 @@ function animate() {
             }
 
             if (isSpriteSheet && player.userData.isStitched) {
+                // Force idle if no update received for 500ms
+                if (Date.now() - p.lastUpdateTime > 500) {
+                    p.isMoving = false;
+                    p.isAttacking = false;
+                }
+
                 let currentTex = p.idleTex;
                 let count = 12;
                 let speed = 100;
