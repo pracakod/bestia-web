@@ -60,8 +60,8 @@ const TILE_SIZE = 0.7;
 const MAP_SIZE = 5000; // MASSIVE MAP
 const VIEW_RADIUS = 22; // Reduced for performance
 const CENTER = MAP_SIZE / 2;
-const GAME_VERSION = "v1.0.0";
-const LAST_UPDATE = "Smooth Player Interpolation";
+const GAME_VERSION = "v1.1.0";
+const LAST_UPDATE = "Optimized Torch Lights (Pool)";
 
 // Biome thresholds (distance from center)
 const STONE_RADIUS = 800;  // Inner stone/cave biome
@@ -120,6 +120,23 @@ const wallMat = stoneWallMat;
 // Loaded tiles and collision map
 const loadedTiles = new Map();
 const objectsMap = new Map();
+
+// === TORCH LIGHT POOL (Performance optimization) ===
+// Instead of creating PointLight for each torch, use a pool of lights
+// that are dynamically assigned to the closest torches each frame
+const MAX_TORCH_LIGHTS = 5; // Maximum active lights
+const torchLightPool = [];
+for (let i = 0; i < MAX_TORCH_LIGHTS; i++) {
+    const light = new THREE.PointLight(0xffaa00, 8.0, 15);
+    light.decay = 1.5;
+    light.castShadow = false;
+    light.visible = false;
+    scene.add(light);
+    torchLightPool.push(light);
+}
+
+// Track all torch positions for light assignment
+const torchPositions = [];
 
 function getKey(worldX, worldZ) {
     const gx = Math.round(worldX / TILE_SIZE);
@@ -215,11 +232,8 @@ function applyMutationTorch(x, z) {
     torch.position.set(x, 0.2, z);
     scene.add(torch);
 
-    const light = new THREE.PointLight(0xffaa00, 8.0, 25);
-    light.decay = 1.5;
-    light.position.set(0, 0.8, 0);
-    light.castShadow = false;
-    torch.add(light);
+    // Track torch position for light pool assignment (no PointLight created here!)
+    torchPositions.push({ x, z });
 
     objectsMap.set(key, { type: 'torch', mesh: torch });
 }
@@ -982,13 +996,47 @@ function placeTorch(tx, tz, isRemote = false) {
     torch.position.set(x, 0.2, z);
     scene.add(torch);
 
-    const light = new THREE.PointLight(0xffaa00, 8.0, 25);
-    light.decay = 1.5;
-    light.position.set(0, 0.8, 0);
-    light.castShadow = false;
-    torch.add(light);
+    // Track torch position for light pool assignment (no PointLight created here!)
+    torchPositions.push({ x, z });
 
     objectsMap.set(key, { type: 'torch', mesh: torch });
+}
+
+// === UPDATE TORCH LIGHTS (Called every frame) ===
+// Assigns lights from pool to the closest torches to the player
+function updateTorchLights() {
+    if (!player || torchPositions.length === 0) {
+        // Hide all lights if no player or no torches
+        for (const light of torchLightPool) {
+            light.visible = false;
+        }
+        return;
+    }
+
+    const px = player.position.x;
+    const pz = player.position.z;
+
+    // Calculate distances to all torches
+    const distances = torchPositions.map((t, i) => ({
+        index: i,
+        x: t.x,
+        z: t.z,
+        dist: Math.sqrt((t.x - px) ** 2 + (t.z - pz) ** 2)
+    }));
+
+    // Sort by distance
+    distances.sort((a, b) => a.dist - b.dist);
+
+    // Assign lights to closest torches
+    for (let i = 0; i < torchLightPool.length; i++) {
+        const light = torchLightPool[i];
+        if (i < distances.length && distances[i].dist < 30) {
+            light.position.set(distances[i].x, 0.8, distances[i].z);
+            light.visible = true;
+        } else {
+            light.visible = false;
+        }
+    }
 }
 
 // === INPUT ===
@@ -1094,6 +1142,9 @@ function animate() {
 
     // Dynamic map loading
     updateChunks(player.position.x, player.position.z);
+
+    // Update torch light pool - assign lights to closest torches
+    updateTorchLights();
 
     if (!player) return;
 
