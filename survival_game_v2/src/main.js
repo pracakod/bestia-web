@@ -178,17 +178,23 @@ function applyMutationDestroy(x, z) {
     const objData = objectsMap.get(key);
     if (!objData) return;
 
+    // Only destroy built objects, NOT floors (floors can be rebuilt, don't reapply destroy)
     if (objData.type === 'built' || objData.type === 'torch' || objData.type === 'wall' || objData.type === 'rock') {
         scene.remove(objData.mesh);
+
+        // If destroying torch, remove from torchPositions
+        if (objData.type === 'torch') {
+            const idx = torchPositions.findIndex(t => Math.abs(t.x - x) < 0.1 && Math.abs(t.z - z) < 0.1);
+            if (idx !== -1) torchPositions.splice(idx, 1);
+        }
+
         const floor = new THREE.Mesh(voxelGeo, stoneMat.clone());
         floor.position.set(x, -0.35, z);
         floor.receiveShadow = true;
         scene.add(floor);
         objectsMap.set(key, { type: 'floor', mesh: floor, hp: 3, isRebuilt: true });
-    } else if (objData.type === 'floor') {
-        scene.remove(objData.mesh);
-        objectsMap.delete(key);
     }
+    // NOTE: Do NOT delete floors here - they may have been rebuilt since the mutation was saved
 }
 
 function applyMutationBuild(x, z) {
