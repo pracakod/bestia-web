@@ -515,6 +515,7 @@ function setupPlayer(texture, isCustomStitched, idleTexture, slashTexture) {
         placeObjectOnGrid(startGx + 3, startGz, chestTex, 'chest');
 
         // === INITIALIZE MULTIPLAYER ===
+        console.log('Main: Starting multiplayer init...');
         multiplayer = initMultiplayer(
             // Position update
             (data) => {

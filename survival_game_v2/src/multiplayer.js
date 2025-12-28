@@ -1,20 +1,20 @@
 const SUPABASE_URL = 'https://kvzuofdkhglcjljsldzz.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_5e5YVZRziHvKQQ7mboF4Tg_7_uTLZDW';
 
-let supabase = null;
+let supabaseClient = null;
 let channel = null;
 let myPlayerId = 'guest_' + Math.random().toString(36).substr(2, 9);
 let otherPlayersData = new Map();
 
 export function initMultiplayer(onPlayerUpdate, onPlayerJoin, onPlayerLeave, onServerFull, onLocalNumber) {
-    if (typeof supabasejs === 'undefined') {
+    if (typeof supabase === 'undefined') {
         console.error('Supabase SDK not loaded');
         return;
     }
 
-    supabase = supabasejs.createClient(SUPABASE_URL, SUPABASE_KEY);
+    supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    channel = supabase.channel('survival_world_1', {
+    channel = supabaseClient.channel('survival_world_1', {
         config: {
             presence: {
                 key: myPlayerId,
