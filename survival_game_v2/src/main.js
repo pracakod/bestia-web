@@ -834,35 +834,47 @@ function animate() {
         }
 
         const moveDist = BASE_SPEED * delta;
-        const nextX = player.position.x + dx * moveDist;
-        const nextZ = player.position.z + dy * moveDist;
 
-        // Collision
-        let collision = false;
-        const range = 0.2;
-        const checks = [
-            [nextX - range, nextZ - range], [nextX + range, nextZ - range],
-            [nextX - range, nextZ + range], [nextX + range, nextZ + range]
-        ];
+        // Collision Helper
+        const checkCollision = (cx, cz) => {
+            const range = 0.2;
+            const points = [
+                [cx - range, cz - range], [cx + range, cz - range],
+                [cx - range, cz + range], [cx + range, cz + range]
+            ];
+            for (let p of points) {
+                const k = getKey(p[0], p[1]);
+                const objData = objectsMap.get(k);
 
-        for (let p of checks) {
-            const k = getKey(p[0], p[1]);
-            if (!objectsMap.has(k)) {
-                collision = true; break;
-            }
-            const objData = objectsMap.get(k);
-            if (objData.type !== 'torch' && objData.type !== 'floor' && objData.type !== 'wood') {
-                if (objData.type === 'water') {
-                    // Water blocks movement
-                    collision = true; break;
+                // Void/Unloaded -> Block
+                if (!objData) return true;
+
+                // Water -> Block
+                if (objData.type === 'water') return true;
+
+                // Obstacles (Walls, Workbench, Chest, etc) -> Block
+                // Allowed: floor, wood, torch
+                if (objData.type !== 'floor' && objData.type !== 'wood' && objData.type !== 'torch') {
+                    return true;
                 }
-                collision = true; break;
+            }
+            return false;
+        };
+
+        // Move X
+        if (dx !== 0) {
+            const nextX = player.position.x + dx * moveDist;
+            if (!checkCollision(nextX, player.position.z)) {
+                player.position.x = nextX;
             }
         }
 
-        if (!collision) {
-            player.position.x = nextX;
-            player.position.z = nextZ;
+        // Move Z
+        if (dy !== 0) {
+            const nextZ = player.position.z + dy * moveDist;
+            if (!checkCollision(player.position.x, nextZ)) {
+                player.position.z = nextZ;
+            }
         }
     }
 
