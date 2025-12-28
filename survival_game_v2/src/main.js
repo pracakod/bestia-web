@@ -669,7 +669,7 @@ function destroyBlock(tx, tz, isRemote = false) {
     const z = tz !== undefined ? tz : selector.position.z;
     const key = getKey(x, z);
 
-    if (!isRemote && multiplayer) {
+    if (!isRemote && multiplayer && multiplayer.sendAction) {
         multiplayer.sendAction('destroy', x, z);
     }
 
@@ -764,7 +764,7 @@ function placeBlock(tx, tz, isRemote = false) {
     const z = tz !== undefined ? tz : selector.position.z;
     const key = getKey(x, z);
 
-    if (!isRemote && multiplayer) {
+    if (!isRemote && multiplayer && multiplayer.sendAction) {
         multiplayer.sendAction('build', x, z);
     }
 
@@ -819,7 +819,7 @@ function placeTorch(tx, tz, isRemote = false) {
     const z = tz !== undefined ? tz : selector.position.z;
     const key = getKey(x, z);
 
-    if (!isRemote && multiplayer) {
+    if (!isRemote && multiplayer && multiplayer.sendAction) {
         multiplayer.sendAction('torch', x, z);
     }
 
