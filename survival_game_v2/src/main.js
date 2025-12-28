@@ -680,11 +680,22 @@ function destroyBlock(tx, tz, isRemote = false) {
     const dist = Math.sqrt((x - player.position.x) ** 2 + (z - player.position.z) ** 2);
     const objData = objectsMap.get(key);
 
-    if (!isRemote && objData && (objData.type === 'floor' || objData.type === 'wood') && dist < 0.6) {
-        console.log("Za blisko!");
-        return;
+    // Check if any player is standing on this tile
+    if (!isRemote && objData && (objData.type === 'floor' || objData.type === 'wood')) {
+        // Check local player
+        if (dist < 0.6) {
+            console.log("Za blisko!");
+            return;
+        }
+        // Check other players
+        for (const p of otherPlayers.values()) {
+            const pDist = Math.sqrt((x - p.mesh.position.x) ** 2 + (z - p.mesh.position.z) ** 2);
+            if (pDist < 0.6) {
+                console.log("Tu stoi inny gracz!");
+                return;
+            }
+        }
     }
-    // ... (rest of logic remains same, just uses x, z)
 
     if (objData) {
         if (objData.type === 'built' || objData.type === 'torch') {
