@@ -363,13 +363,39 @@
             cursor: pointer;
             z-index: 2001;
         ">✕</button>
+
+        <!-- Zoom buttons -->
+        <div
+            style="position: absolute; top: 20px; left: 20px; display: flex; flex-direction: column; gap: 5px; z-index: 2001;">
+            <button id="btn-zoom-in" style="
+                font-size: 28px;
+                background: #2a2;
+                color: white;
+                border: none;
+                border-radius: 10px;
+                width: 50px;
+                height: 50px;
+                cursor: pointer;
+            ">+</button>
+            <button id="btn-zoom-out" style="
+                font-size: 28px;
+                background: #22a;
+                color: white;
+                border: none;
+                border-radius: 10px;
+                width: 50px;
+                height: 50px;
+                cursor: pointer;
+            ">−</button>
+        </div>
+
         <h2>Mapa Świata</h2>
         <canvas id="map-canvas" width="1000" height="1000"
             style="width: 80vmin; height: 80vmin; border: 2px solid #555; background: black; box-shadow: 0 0 20px black; image-rendering: pixelated;"></canvas>
         <p>Naciśnij <b>M</b> lub przycisk aby zamknąć</p>
     </div>
 
-    <script type="module" src="./src/main.js?v=37"></script>
+    <script type="module" src="./src/main.js?v=38"></script>
 </body>
 
 </html>
