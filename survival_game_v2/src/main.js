@@ -60,8 +60,8 @@ const TILE_SIZE = 0.7;
 const MAP_SIZE = 5000; // MASSIVE MAP
 const VIEW_RADIUS = 22; // Reduced for performance
 const CENTER = MAP_SIZE / 2;
-const GAME_VERSION = "v1.3.0";
-const LAST_UPDATE = "Fixed Remote Action Sync";
+const GAME_VERSION = "v1.4.0";
+const LAST_UPDATE = "Periodic World Sync (5s)";
 
 // Biome thresholds (distance from center)
 const STONE_RADIUS = 800;  // Inner stone/cave biome
@@ -735,16 +735,46 @@ function setupPlayer(texture, isCustomStitched, idleTexture, slashTexture) {
             }
         );
 
-        // === LOAD SAVED WORLD MUTATIONS TO CACHE ===
-        // Mutations are cached and applied only when chunks become visible (in loadTile)
-        if (multiplayer && multiplayer.loadMutations) {
-            multiplayer.loadMutations().then(mutations => {
-                console.log('Caching', mutations.length, 'mutations (will apply when visible)...');
-                for (const m of mutations) {
-                    addMutationToCache(m.mutation_type, m.x, m.z);
+        // === LOAD AND REFRESH MUTATIONS ===
+        // Function to load/refresh mutations from database
+        async function refreshMutations() {
+            if (!multiplayer || !multiplayer.loadMutations) return;
+
+            const mutations = await multiplayer.loadMutations();
+            console.log('Refreshing mutations:', mutations.length);
+
+            // Add new mutations to cache AND apply immediately if chunk is loaded
+            for (const m of mutations) {
+                const gx = Math.round(m.x / TILE_SIZE);
+                const gz = Math.round(m.z / TILE_SIZE);
+                const key = getTileKey(gx, gz);
+
+                // Check if already applied
+                const existing = mutationsCache.get(key);
+                if (existing && existing.applied) continue;
+
+                // Add to cache
+                addMutationToCache(m.mutation_type, m.x, m.z);
+
+                // If chunk is already loaded, apply mutation immediately
+                if (loadedTiles.has(key)) {
+                    markMutationApplied(gx, gz);
+                    if (m.mutation_type === 'destroy') {
+                        applyMutationDestroy(m.x, m.z);
+                    } else if (m.mutation_type === 'build') {
+                        applyMutationBuild(m.x, m.z);
+                    } else if (m.mutation_type === 'torch') {
+                        applyMutationTorch(m.x, m.z);
+                    }
                 }
-            });
+            }
         }
+
+        // Initial load
+        refreshMutations();
+
+        // Periodic refresh every 5 seconds for sync
+        setInterval(refreshMutations, 5000);
     } else {
         player.material = mat;
     }
