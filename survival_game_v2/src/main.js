@@ -58,10 +58,10 @@ scene.add(dirLight);
 // === CONSTANTS ===
 const TILE_SIZE = 0.7;
 const MAP_SIZE = 5000; // MASSIVE MAP
-const VIEW_RADIUS = 15; // Reduced for performance (was 22)
+const VIEW_RADIUS = 10; // Optimized for performance (was 15)
 const CENTER = MAP_SIZE / 2;
-const GAME_VERSION = "v1.5.0";
-const LAST_UPDATE = "Closer Camera & Slower Speed";
+const GAME_VERSION = "v1.6.0";
+const LAST_UPDATE = "Performance Optimizations";
 
 // Biome thresholds (distance from center)
 const STONE_RADIUS = 800;  // Inner stone/cave biome
@@ -1238,7 +1238,9 @@ let wasMovingLastFrame = false; // Track previous movement state for sync
 
 function animate() {
     isGameRunning = true;
-    requestAnimationFrame(animate);
+
+    // FPS limiter - 30 FPS for better performance
+    setTimeout(() => requestAnimationFrame(animate), 1000 / 30);
 
     const delta = clock.getDelta(); // Time since last frame in seconds
 
