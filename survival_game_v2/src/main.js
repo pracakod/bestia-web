@@ -60,8 +60,8 @@ const TILE_SIZE = 0.7;
 const MAP_SIZE = 5000; // MASSIVE MAP
 const VIEW_RADIUS = 22; // Reduced for performance
 const CENTER = MAP_SIZE / 2;
-const GAME_VERSION = "v0.8.0";
-const LAST_UPDATE = "World Persistence & Optimized";
+const GAME_VERSION = "v0.9.0";
+const LAST_UPDATE = "Optimized Chunk Rendering";
 
 // Biome thresholds (distance from center)
 const STONE_RADIUS = 800;  // Inner stone/cave biome
@@ -129,6 +129,99 @@ function getKey(worldX, worldZ) {
 
 function getTileKey(gx, gz) {
     return `${gx},${gz}`;
+}
+
+// === MUTATIONS CACHE ===
+// Cache for world mutations - loaded once at start, applied when chunks load
+const mutationsCache = new Map(); // key: "x,z" -> { type: 'build'|'destroy'|'torch', applied: false }
+
+function addMutationToCache(type, x, z) {
+    const gx = Math.round(x / TILE_SIZE);
+    const gz = Math.round(z / TILE_SIZE);
+    const key = getTileKey(gx, gz);
+    mutationsCache.set(key, { type, x, z, applied: false });
+}
+
+function getMutationForTile(gx, gz) {
+    const key = getTileKey(gx, gz);
+    return mutationsCache.get(key);
+}
+
+function markMutationApplied(gx, gz) {
+    const key = getTileKey(gx, gz);
+    const mutation = mutationsCache.get(key);
+    if (mutation) mutation.applied = true;
+}
+
+// === APPLY MUTATIONS (Silent - no network, no animation) ===
+// These are used when loading cached mutations into visible chunks
+
+function applyMutationDestroy(x, z) {
+    const key = getKey(x, z);
+    const objData = objectsMap.get(key);
+    if (!objData) return;
+
+    if (objData.type === 'built' || objData.type === 'torch' || objData.type === 'wall' || objData.type === 'rock') {
+        scene.remove(objData.mesh);
+        const floor = new THREE.Mesh(voxelGeo, stoneMat.clone());
+        floor.position.set(x, -0.35, z);
+        floor.receiveShadow = true;
+        scene.add(floor);
+        objectsMap.set(key, { type: 'floor', mesh: floor, hp: 3, isRebuilt: true });
+    } else if (objData.type === 'floor') {
+        scene.remove(objData.mesh);
+        objectsMap.delete(key);
+    }
+}
+
+function applyMutationBuild(x, z) {
+    const key = getKey(x, z);
+    const objData = objectsMap.get(key);
+
+    if (!objData) {
+        // Hole - rebuild floor
+        const floorBlock = new THREE.Mesh(
+            new THREE.BoxGeometry(0.7, 0.7, 0.7),
+            new THREE.MeshStandardMaterial({ map: floorTexture, roughness: 0.9 })
+        );
+        floorBlock.position.set(x, -0.35, z);
+        floorBlock.receiveShadow = true;
+        scene.add(floorBlock);
+        objectsMap.set(key, { type: 'floor', mesh: floorBlock, hp: 3, isRebuilt: true });
+    } else if (objData.type === 'floor') {
+        if (objData.isRebuilt && objData.mesh) {
+            scene.remove(objData.mesh);
+        }
+        const box = new THREE.Mesh(
+            new THREE.BoxGeometry(0.7, 0.7, 0.7),
+            new THREE.MeshStandardMaterial({ map: blockTexture })
+        );
+        box.position.set(x, 0.35, z);
+        box.castShadow = true;
+        box.receiveShadow = true;
+        scene.add(box);
+        objectsMap.set(key, { type: 'built', mesh: box });
+    }
+}
+
+function applyMutationTorch(x, z) {
+    const key = getKey(x, z);
+    const objData = objectsMap.get(key);
+    if (!objData || objData.type !== 'floor') return;
+
+    const torchGeoLocal = new THREE.BoxGeometry(0.1, 0.4, 0.1);
+    const torchMatLocal = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
+    const torch = new THREE.Mesh(torchGeoLocal, torchMatLocal);
+    torch.position.set(x, 0.2, z);
+    scene.add(torch);
+
+    const light = new THREE.PointLight(0xffaa00, 8.0, 25);
+    light.decay = 1.5;
+    light.position.set(0, 0.8, 0);
+    light.castShadow = false;
+    torch.add(light);
+
+    objectsMap.set(key, { type: 'torch', mesh: torch });
 }
 
 const WORLD_SEED = 12345; // Fixed seed
@@ -259,6 +352,20 @@ function loadTile(gx, gz) {
         } else {
             objectsMap.set(key, { type: 'floor', mesh: floor, hp: 3, isRebuilt: true });
             loadedTiles.set(key, { mesh: floor, gx, gz });
+        }
+    }
+
+    // === APPLY CACHED MUTATION (if any) ===
+    const mutation = getMutationForTile(gx, gz);
+    if (mutation && !mutation.applied) {
+        markMutationApplied(gx, gz);
+        // Apply mutation silently (isRemote=true to avoid re-saving/re-broadcasting)
+        if (mutation.type === 'destroy') {
+            applyMutationDestroy(mutation.x, mutation.z);
+        } else if (mutation.type === 'build') {
+            applyMutationBuild(mutation.x, mutation.z);
+        } else if (mutation.type === 'torch') {
+            applyMutationTorch(mutation.x, mutation.z);
         }
     }
 }
@@ -605,18 +712,13 @@ function setupPlayer(texture, isCustomStitched, idleTexture, slashTexture) {
             }
         );
 
-        // === LOAD SAVED WORLD MUTATIONS ===
+        // === LOAD SAVED WORLD MUTATIONS TO CACHE ===
+        // Mutations are cached and applied only when chunks become visible (in loadTile)
         if (multiplayer && multiplayer.loadMutations) {
             multiplayer.loadMutations().then(mutations => {
-                console.log('Applying', mutations.length, 'mutations to world...');
+                console.log('Caching', mutations.length, 'mutations (will apply when visible)...');
                 for (const m of mutations) {
-                    if (m.mutation_type === 'destroy') {
-                        destroyBlock(m.x, m.z, true);
-                    } else if (m.mutation_type === 'build') {
-                        placeBlock(m.x, m.z, true);
-                    } else if (m.mutation_type === 'torch') {
-                        placeTorch(m.x, m.z, true);
-                    }
+                    addMutationToCache(m.mutation_type, m.x, m.z);
                 }
             });
         }
